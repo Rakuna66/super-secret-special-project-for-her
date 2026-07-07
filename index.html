@@ -9,7 +9,7 @@
 <meta name="theme-color" content="#FFB3C6"/>
 <link rel="manifest" href="manifest.json"/>
 <link rel="apple-touch-icon" href="icons/icon-192.png"/>
-<title>💖 A Playlist For You</title>
+<title>💖 A Playlist For Kelly</title>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet"/>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -275,7 +275,7 @@ input[type=range]::-webkit-slider-thumb {
       <div class="dot dot-y"></div>
       <div class="dot dot-g"></div>
     </div>
-    <div class="titlebar-title">💖 A PLAYLIST FOR YOU 💖</div>
+    <div class="titlebar-title">💖 A PLAYLIST FOR MY LOVE 💖</div>
     <div style="width:37px"></div>
   </div>
 
@@ -547,7 +547,7 @@ function loadSong(index, autoplay = false) {
     navigator.mediaSession.metadata = new MediaMetadata({
       title:  s.title,
       artist: s.artist,
-      album:  'A Playlist For You 💖',
+      album:  'A Playlist For Kelly 💖',
     });
     navigator.mediaSession.setActionHandler('previoustrack', () => go(-1));
     navigator.mediaSession.setActionHandler('nexttrack',     () => go(1));
