@@ -44,10 +44,12 @@ html, body {
 .shell {
   display: flex;
   flex-direction: column;
-  width: 100%;
-  max-width: 460px;
+  width: min(460px, 100vw);
+  min-width: min(460px, 100vw);
   height: 100dvh;
   max-height: 800px;
+  min-height: 0;
+  flex-shrink: 0;
   background: var(--white);
   border: 3px solid var(--navy);
   box-shadow: 6px 6px 0 var(--navy);
@@ -252,6 +254,69 @@ input[type=range]::-webkit-slider-thumb {
   cursor: pointer; color: var(--navy); display: block; width: 100%; text-align: center;
 }
 .modal-close:active { transform: translate(2px,2px); box-shadow: none; }
+
+/* ── Tab nav ── */
+.tab-nav {
+  display: flex;
+  border-bottom: 3px solid var(--navy);
+  flex-shrink: 0;
+  background: var(--cream);
+}
+.tab-btn {
+  flex: 1; padding: 8px 4px;
+  font-family: var(--px); font-size: 7px;
+  color: var(--gray); background: var(--cream);
+  border: none; border-right: 2px solid var(--navy);
+  cursor: pointer; letter-spacing: 0.5px;
+  touch-action: manipulation;
+}
+.tab-btn:last-child { border-right: none; }
+.tab-btn.active { background: var(--lavender); color: var(--navy); }
+.tab-btn:hover:not(.active) { background: var(--pink); color: var(--navy); }
+
+/* ── Views ── */
+.view { display: none; flex-direction: column; flex: 1; min-height: 0; width: 100%; overflow: hidden; }
+.view.active { display: flex; flex: 1; min-height: 0; width: 100%; }
+
+/* ── Card view ── */
+.card-scroll {
+  flex: 1; overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 20px 18px 32px;
+  background: var(--cream);
+  width: 100%;
+}
+.card-scroll::-webkit-scrollbar { width: 6px; }
+.card-scroll::-webkit-scrollbar-thumb { background: var(--lavender); border: 1px solid var(--navy); }
+.card-envelope {
+  background: var(--white);
+  border: 3px solid var(--navy);
+  box-shadow: 4px 4px 0 var(--navy);
+  padding: 24px 20px 28px;
+}
+.card-envelope::before {
+  content: '💖';
+  display: block; text-align: center;
+  font-size: 28px; margin-bottom: 16px;
+}
+.card-divider {
+  height: 3px;
+  background: linear-gradient(90deg, var(--pink), var(--lavender), var(--mint));
+  margin-bottom: 20px;
+}
+.card-to {
+  font-family: var(--px); font-size: 8px;
+  color: var(--gray); margin-bottom: 16px; letter-spacing: 1px;
+}
+.card-body {
+  font-family: Georgia, serif; font-size: 13px;
+  color: var(--navy); line-height: 2; white-space: pre-wrap;
+}
+.card-sign {
+  margin-top: 24px;
+  font-family: Georgia, serif; font-size: 13px;
+  font-style: italic; color: #6B5B95; text-align: right;
+}
 </style>
 </head>
 <body>
@@ -278,6 +343,15 @@ input[type=range]::-webkit-slider-thumb {
     <div class="titlebar-title">💖 A PLAYLIST FOR MY LOVE 💖</div>
     <div style="width:37px"></div>
   </div>
+
+  <!-- Tab nav -->
+  <div class="tab-nav">
+    <button class="tab-btn active" id="tabPlayer" onclick="switchTab('player')">♪ PLAYER</button>
+    <button class="tab-btn" id="tabCard" onclick="switchTab('card')">💌 CARD</button>
+  </div>
+
+  <!-- Player view -->
+  <div class="view active" id="viewPlayer">
 
   <!-- Photo -->
   <div class="photo-panel" id="photoPanel">
@@ -324,6 +398,25 @@ input[type=range]::-webkit-slider-thumb {
 
   <!-- Playlist -->
   <div class="playlist" id="playlist"></div>
+  </div>
+
+  <!-- Card view -->
+  <div class="view" id="viewCard">
+    <div class="card-scroll">
+      <div class="card-envelope">
+        <div class="card-divider"></div>
+        <div class="card-to">TO: KELLY 💖</div>
+        <div class="card-body">Write your card message here.
+
+You can use line breaks and it will
+all be preserved exactly as written.
+
+This is where you pour your heart out. ♡</div>
+        <div class="card-sign">— Your partner for life, Tony 🌸</div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <audio id="audio" preload="metadata"></audio>
@@ -655,6 +748,14 @@ loadSong(0, false);
 // Service worker
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').catch(console.warn);
+}
+
+// ── Tab switching ──
+function switchTab(tab) {
+  document.getElementById('viewPlayer').classList.toggle('active', tab === 'player');
+  document.getElementById('viewCard').classList.toggle('active', tab === 'card');
+  document.getElementById('tabPlayer').classList.toggle('active', tab === 'player');
+  document.getElementById('tabCard').classList.toggle('active', tab === 'card');
 }
 </script>
 </body>
