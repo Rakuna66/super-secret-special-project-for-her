@@ -202,6 +202,7 @@ canvas { width: 100%; height: 100%; display: block; }
 .ctrl-btn:active { transform: translate(2px,2px); box-shadow: none; }
 .ctrl-btn.play { background: var(--lavender); padding: 10px 18px; font-size: 14px; }
 .ctrl-btn:hover { background: var(--pink); }
+.ctrl-btn.repeat-btn.active { background: var(--mint); }
 
 /* Volume */
 .vol-row {
@@ -407,6 +408,7 @@ input[type=range]::-webkit-slider-thumb {
     <button class="ctrl-btn" id="prevBtn">◀◀</button>
     <button class="ctrl-btn play" id="playBtn">▶</button>
     <button class="ctrl-btn" id="nextBtn">▶▶</button>
+    <button class="ctrl-btn repeat-btn" id="repeatBtn" title="Repeat this song" aria-pressed="false">🔁</button>
   </div>
 
   <!-- Volume -->
@@ -550,6 +552,7 @@ const audio     = document.getElementById('audio');
 const playBtn   = document.getElementById('playBtn');
 const prevBtn   = document.getElementById('prevBtn');
 const nextBtn   = document.getElementById('nextBtn');
+const repeatBtn = document.getElementById('repeatBtn');
 const volSlider = document.getElementById('volSlider');
 const pFill     = document.getElementById('progressFill');
 const pTrack    = document.getElementById('progressTrack');
@@ -705,10 +708,25 @@ playBtn.addEventListener('click', () => {
 
 prevBtn.addEventListener('click', () => go(-1));
 nextBtn.addEventListener('click', () => go(1));
+
+let repeatOne = false;
+repeatBtn.addEventListener('click', () => {
+  repeatOne = !repeatOne;
+  repeatBtn.classList.toggle('active', repeatOne);
+  repeatBtn.setAttribute('aria-pressed', String(repeatOne));
+});
+
 // The spec fires 'pause' right before 'ended' when a track finishes on its
 // own, which would otherwise read as isPlaying=false by the time we advance.
 // Force autoplay here so the next track always picks up automatically.
-audio.addEventListener('ended', () => go(1, true));
+audio.addEventListener('ended', () => {
+  if (repeatOne) {
+    audio.currentTime = 0;
+    audio.play().catch(err => console.warn(err));
+  } else {
+    go(1, true);
+  }
+});
 
 // Keep the play/pause button in sync even when playback stops for reasons
 // outside our own click handler (e.g. a call interrupting audio focus).
