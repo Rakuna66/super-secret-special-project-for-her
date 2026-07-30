@@ -40,6 +40,23 @@ html, body {
   justify-content: center;
 }
 
+/* ── Drifting cutesy backdrop (behind the shell, visible in the margins) ── */
+.bg-scroll {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cpath fill='%23FFB3C6' fill-opacity='0.6' d='M14 12c-2-3-7-3-7 1 0 3 7 8 7 8s7-5 7-8c0-4-5-4-7-1z'/%3E%3Cpath fill='%23C9B8E8' fill-opacity='0.6' d='M46 8l2 5 5 2-5 2-2 5-2-5-5-2 5-2z'/%3E%3Ccircle fill='%23B8E8D0' fill-opacity='0.6' cx='22' cy='42' r='3'/%3E%3Ccircle fill='%23FFD6B3' fill-opacity='0.6' cx='50' cy='50' r='2.5'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 64px 64px;
+  animation: bgDrift 60s linear infinite;
+}
+body.bg-paused .bg-scroll { animation-play-state: paused; }
+@keyframes bgDrift {
+  from { background-position: 0 0; }
+  to   { background-position: -64px -64px; }
+}
+
 /* ── Layout shell ── */
 .shell {
   display: flex;
@@ -320,6 +337,8 @@ input[type=range]::-webkit-slider-thumb {
 </style>
 </head>
 <body>
+
+<div class="bg-scroll" aria-hidden="true"></div>
 
 <!-- Why modal -->
 <div class="modal-overlay" id="whyModal">
@@ -657,8 +676,9 @@ function loadSong(index, autoplay = false) {
   }
 }
 
-function go(dir) {
-  loadSong((currentIndex + dir + songs.length) % songs.length, isPlaying);
+function go(dir, forcePlay) {
+  const autoplay = forcePlay !== undefined ? forcePlay : isPlaying;
+  loadSong((currentIndex + dir + songs.length) % songs.length, autoplay);
 }
 
 function ensureAudioCtx() {
@@ -685,12 +705,26 @@ playBtn.addEventListener('click', () => {
 
 prevBtn.addEventListener('click', () => go(-1));
 nextBtn.addEventListener('click', () => go(1));
-audio.addEventListener('ended', () => go(1));
+// The spec fires 'pause' right before 'ended' when a track finishes on its
+// own, which would otherwise read as isPlaying=false by the time we advance.
+// Force autoplay here so the next track always picks up automatically.
+audio.addEventListener('ended', () => go(1, true));
 
 // Keep the play/pause button in sync even when playback stops for reasons
 // outside our own click handler (e.g. a call interrupting audio focus).
 audio.addEventListener('pause', () => { isPlaying = false; playBtn.textContent = '▶'; });
 audio.addEventListener('play',  () => { isPlaying = true;  playBtn.textContent = '⏸'; vizIdle.style.display = 'none'; });
+
+// iOS suspends the AudioContext when the page is backgrounded/locked, which
+// silences playback even though the <audio> element itself keeps going.
+// Resume it as soon as the page is visible again.
+document.addEventListener('visibilitychange', () => {
+  document.body.classList.toggle('bg-paused', document.hidden);
+  if (!document.hidden && audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+});
+window.addEventListener('pageshow', () => {
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+});
 
 // Progress
 audio.addEventListener('timeupdate', () => {
