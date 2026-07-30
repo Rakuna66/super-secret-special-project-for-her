@@ -127,7 +127,6 @@ html, body {
   overflow: hidden;
   cursor: pointer;
 }
-.song-why.expanded { -webkit-line-clamp: unset; }
 
 /* ── Visualizer ── */
 .viz-wrap {
@@ -310,8 +309,9 @@ input[type=range]::-webkit-slider-thumb {
 }
 .card-body {
   font-family: Georgia, serif; font-size: 13px;
-  color: var(--navy); line-height: 2; white-space: pre-wrap;
+  color: var(--navy); line-height: 2;
 }
+.card-body p + p { margin-top: 1em; }
 .card-sign {
   margin-top: 24px;
   font-family: Georgia, serif; font-size: 13px;
@@ -407,27 +407,9 @@ input[type=range]::-webkit-slider-thumb {
         <div class="card-divider"></div>
         <div class="card-to">To my dearest KELLY</div>
         <div class="card-body">
-          I've been wanting to make this for you for a long time. 
-          Something that would make you smile, 
-          and maybe even cry a little. Each song is curated to 
-          show you how much I appreciate you, and all the little 
-          things that remind me of you. Although, I had to use 
-          royalty-free music for this, I hope you still enjoy the 
-          selections! I tried to pick songs that you could play 
-          on a loop to relax to, or jam out when doing stuff 
-          through the day. Another birthday means another year 
-          of memories, and I can't wait to share more 
-          moments with you. My favorite memory of you this 
-          year was being able to experience San Antonioioio 
-          with you. The city really was beautiful, but the best
-          part was exploring and walking and dreaming of just 
-          a cozy little future with you.
-          I HOPE THIS LIVES UP TO THE EXPECTATIONS. 
-          I KNOW THERE WAS A LOT OF ANXIETY AND 
-          PRESSURE LOL.
-          I LUHHHHHH YOU SO MUCH, AND I HOPE 
-          YOU HAVE THE BEST BIRTHDAY EVER. 
-          (ALONG WITH THE OTHER SURPRISES LINED UP)
+          <p>I've been wanting to make this for you for a long time. Something that would make you smile, and maybe even cry a little. Each song is curated to show you how much I appreciate you, and all the little things that remind me of you. Although, I had to use royalty-free music for this, I hope you still enjoy the selections! I tried to pick songs that you could play on a loop to relax to, or jam out when doing stuff through the day. Another birthday means another year of memories, and I can't wait to share more moments with you. My favorite memory of you this year was being able to experience San Antonioioio with you. The city really was beautiful, but the best part was exploring and walking and dreaming of just a cozy little future with you.</p>
+          <p>I HOPE THIS LIVES UP TO THE EXPECTATIONS. I KNOW THERE WAS A LOT OF ANXIETY AND PRESSURE LOL.</p>
+          <p>I LUHHHHHH YOU SO MUCH, AND I HOPE YOU HAVE THE BEST BIRTHDAY EVER. (ALONG WITH THE OTHER SURPRISES LINED UP)</p>
         </div>
         <div class="card-sign">— Your BFWB, Tony</div>
       </div>
@@ -604,6 +586,18 @@ songs.forEach((s, i) => {
   playlistEl.appendChild(el);
 });
 
+// Preload just the metadata (duration) for every track so the playlist
+// shows real times up front instead of only after each song has been played.
+songs.forEach((s, i) => {
+  const probe = new Audio();
+  probe.preload = 'metadata';
+  probe.addEventListener('loadedmetadata', () => {
+    const d = document.getElementById(`dur-${i}`);
+    if (d) d.textContent = fmt(probe.duration);
+  });
+  probe.src = s.src;
+});
+
 function fmt(s) {
   if (!s || isNaN(s)) return '--:--';
   const m = Math.floor(s / 60), ss = Math.floor(s % 60);
@@ -624,7 +618,6 @@ function loadSong(index, autoplay = false) {
   songTitle.textContent  = s.title;
   songArtist.textContent = s.artist;
   songWhy.textContent    = s.why;
-  songWhy.classList.remove('expanded');
 
   if (s.photo) {
     photoImg.src = s.photo;
@@ -647,9 +640,7 @@ function loadSong(index, autoplay = false) {
 
   if (autoplay) {
     ensureAudioCtx();
-    audio.play()
-      .then(() => { isPlaying = true; playBtn.textContent = '⏸'; vizIdle.style.display = 'none'; })
-      .catch(err => console.warn('Playback blocked:', err));
+    audio.play().catch(err => console.warn('Playback blocked:', err));
   }
 
   // Update media session (lock screen controls)
@@ -661,8 +652,8 @@ function loadSong(index, autoplay = false) {
     });
     navigator.mediaSession.setActionHandler('previoustrack', () => go(-1));
     navigator.mediaSession.setActionHandler('nexttrack',     () => go(1));
-    navigator.mediaSession.setActionHandler('play',  () => { audio.play(); isPlaying=true; playBtn.textContent='⏸'; });
-    navigator.mediaSession.setActionHandler('pause', () => { audio.pause(); isPlaying=false; playBtn.textContent='▶'; });
+    navigator.mediaSession.setActionHandler('play',  () => audio.play());
+    navigator.mediaSession.setActionHandler('pause', () => audio.pause());
   }
 }
 
@@ -679,7 +670,6 @@ function ensureAudioCtx() {
   const source = audioCtx.createMediaElementSource(audio);
   source.connect(analyser);
   analyser.connect(audioCtx.destination);
-  drawViz();
 }
 
 // Play / Pause
@@ -687,17 +677,20 @@ playBtn.addEventListener('click', () => {
   if (!audio.src || audio.src === window.location.href) { loadSong(0, true); return; }
   ensureAudioCtx();
   if (isPlaying) {
-    audio.pause(); isPlaying = false; playBtn.textContent = '▶';
+    audio.pause();
   } else {
-    audio.play()
-      .then(() => { isPlaying = true; playBtn.textContent = '⏸'; vizIdle.style.display = 'none'; })
-      .catch(err => console.warn(err));
+    audio.play().catch(err => console.warn(err));
   }
 });
 
 prevBtn.addEventListener('click', () => go(-1));
 nextBtn.addEventListener('click', () => go(1));
 audio.addEventListener('ended', () => go(1));
+
+// Keep the play/pause button in sync even when playback stops for reasons
+// outside our own click handler (e.g. a call interrupting audio focus).
+audio.addEventListener('pause', () => { isPlaying = false; playBtn.textContent = '▶'; });
+audio.addEventListener('play',  () => { isPlaying = true;  playBtn.textContent = '⏸'; vizIdle.style.display = 'none'; });
 
 // Progress
 audio.addEventListener('timeupdate', () => {
