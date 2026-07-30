@@ -330,16 +330,16 @@ input[type=range]::-webkit-slider-thumb {
   position: absolute; font-size: 20px; line-height: 1;
   filter: drop-shadow(1px 1px 0 var(--navy));
 }
-.deco-1  { top: -14px; left: -12px; font-size: 22px; transform: rotate(-18deg); }
-.deco-2  { top: -12px; right: -10px; transform: rotate(14deg); }
-.deco-3  { top: 22%; left: -14px; transform: rotate(-10deg); }
-.deco-4  { top: 34%; right: -14px; transform: rotate(12deg); }
-.deco-5  { top: 52%; left: -12px; transform: rotate(8deg); }
-.deco-6  { top: 62%; right: -12px; transform: rotate(-12deg); }
-.deco-7  { bottom: -12px; left: 18%; transform: rotate(-10deg); }
-.deco-8  { bottom: -14px; right: 18%; transform: rotate(14deg); }
-.deco-9  { bottom: -10px; left: -10px; transform: rotate(16deg); }
-.deco-10 { bottom: -12px; right: -10px; font-size: 22px; transform: rotate(-16deg); }
+.deco-1  { top: 8px; left: 6px; font-size: 22px; transform: rotate(-18deg); }
+.deco-2  { top: 8px; right: 6px; transform: rotate(14deg); }
+.deco-3  { top: 22%; left: 4px; transform: rotate(-10deg); }
+.deco-4  { top: 34%; right: 4px; transform: rotate(12deg); }
+.deco-5  { top: 52%; left: 4px; transform: rotate(8deg); }
+.deco-6  { top: 62%; right: 4px; transform: rotate(-12deg); }
+.deco-7  { bottom: 8px; left: 18%; transform: rotate(-10deg); }
+.deco-8  { bottom: 8px; right: 18%; transform: rotate(14deg); }
+.deco-9  { bottom: 8px; left: 6px; transform: rotate(16deg); }
+.deco-10 { bottom: 8px; right: 6px; font-size: 22px; transform: rotate(-16deg); }
 
 .card-divider {
   height: 3px;
@@ -349,6 +349,26 @@ input[type=range]::-webkit-slider-thumb {
 .card-to {
   font-family: var(--px); font-size: 8px;
   color: var(--gray); margin-bottom: 16px; letter-spacing: 1px;
+}
+.card-name {
+  display: inline-block;
+  font-size: 16px;
+  letter-spacing: 2px;
+  background: linear-gradient(90deg, var(--pink), var(--lavender), var(--mint), var(--peach), var(--pink));
+  background-size: 300% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  text-shadow: 2px 2px 0 var(--navy);
+  animation: nameShine 4s linear infinite, namePulse 1.8s ease-in-out infinite;
+}
+@keyframes nameShine {
+  to { background-position: 300% 50%; }
+}
+@keyframes namePulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.12); }
 }
 .card-body {
   font-family: Georgia, serif; font-size: 13px;
@@ -466,7 +486,7 @@ input[type=range]::-webkit-slider-thumb {
           <span>✨</span><span>🕹️</span><span>💖</span><span>🎮</span><span>✨</span>
         </div>
         <div class="card-divider"></div>
-        <div class="card-to">To my dearest KELLY</div>
+        <div class="card-to">To my dearest <span class="card-name">KELLY</span></div>
         <div class="card-body">
           <p>I've been wanting to make this for you for a long time. Something that would make you smile, and maybe even cry a little. Each song is curated to show you how much I appreciate you, and all the little things that remind me of you. Although, I had to use royalty-free music for this, I hope you still enjoy the selections! I tried to pick songs that you could play on a loop to relax to, or jam out when doing stuff through the day. Another birthday means another year of memories, and I can't wait to share more moments with you. My favorite memory of you this year was being able to experience San Antonioioio with you. The city really was beautiful, but the best part was exploring and walking and dreaming of just a cozy little future with you.</p>
           <p>I HOPE THIS LIVES UP TO THE EXPECTATIONS. I KNOW THERE WAS A LOT OF ANXIETY AND PRESSURE LOL.</p>
