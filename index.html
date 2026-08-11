@@ -9,7 +9,7 @@
 <meta name="theme-color" content="#FFB3C6"/>
 <link rel="manifest" href="manifest.json"/>
 <link rel="apple-touch-icon" href="icons/icon-192.png"/>
-<title>💖 A Playlist For Kelly</title>
+<title>A Playlist For Kelly</title>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet"/>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -406,14 +406,14 @@ input[type=range]::-webkit-slider-thumb {
       <div class="dot dot-y"></div>
       <div class="dot dot-g"></div>
     </div>
-    <div class="titlebar-title">💖 A PLAYLIST FOR MY LOVE 💖</div>
+    <div class="titlebar-title">♡ A PLAYLIST FOR MY LOVE ♡</div>
     <div style="width:37px"></div>
   </div>
 
   <!-- Tab nav -->
   <div class="tab-nav">
     <button class="tab-btn active" id="tabPlayer" onclick="switchTab('player')">♪ PLAYER</button>
-    <button class="tab-btn" id="tabCard" onclick="switchTab('card')">💌 CARD</button>
+    <button class="tab-btn" id="tabCard" onclick="switchTab('card')">✉ CARD</button>
   </div>
 
   <!-- Player view -->
@@ -421,7 +421,7 @@ input[type=range]::-webkit-slider-thumb {
 
   <!-- Photo -->
   <div class="photo-panel" id="photoPanel">
-    <div class="photo-emoji" id="photoEmoji">🌸</div>
+    <div class="photo-emoji" id="photoEmoji">♡</div>
     <img id="photoImg" src="" alt="" style="display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover;"/>
   </div>
 
@@ -504,7 +504,7 @@ input[type=range]::-webkit-slider-thumb {
 
 <script>
 // ═══════════════════════════════════════════════
-//  ✏️  YOUR SONGS — fill this in!
+//  YOUR SONGS — fill this in!
 //
 //  src:   "songs/filename.mp3"
 //         Upload your MP3s to the songs/ folder
@@ -513,7 +513,7 @@ input[type=range]::-webkit-slider-thumb {
 //         Upload photos of you two to photos/
 //         Leave as "" to show the emoji instead
 //
-//  why:   Your personal note — make her cry 💖
+//  why:   Your personal note — make her cry
 // ═══════════════════════════════════════════════
 const songs = [
   {
@@ -558,11 +558,11 @@ const songs = [
   },
   {
     title:  "thinking about her shimmy",
-    artist: "profesional shimmyer",
+    artist: "professional shimmyer",
     src:    "songs/thinking_about_her_shimmy.mp3",
     photo:  "photos/thinking_about_her_shimmy.JPEG",
     emoji:  "",
-    why:    "our sillyness together seems unmatched. I love how we can be goofy and have fun together. I love how you make me laugh."
+    why:    "our silliness together seems unmatched. I love how we can be goofy and have fun together. I love how you make me laugh."
   },
   {
     title:  "always dreaming, halfway done (ADHD)",
@@ -709,7 +709,7 @@ function loadSong(index, autoplay = false) {
   } else {
     photoImg.style.display = 'none';
     photoEmoji.style.display = '';
-    photoEmoji.textContent = s.emoji || '🎵';
+    photoEmoji.textContent = s.emoji || '♪';
   }
 
   pFill.style.width = '0%';
@@ -731,7 +731,7 @@ function loadSong(index, autoplay = false) {
     navigator.mediaSession.metadata = new MediaMetadata({
       title:  s.title,
       artist: s.artist,
-      album:  'A Playlist For Kelly 💖',
+      album:  'A Playlist For Kelly',
     });
     navigator.mediaSession.setActionHandler('previoustrack', () => go(-1));
     navigator.mediaSession.setActionHandler('nexttrack',     () => go(1));
@@ -792,7 +792,7 @@ audio.addEventListener('ended', () => {
 // Keep the play/pause button in sync even when playback stops for reasons
 // outside our own click handler (e.g. a call interrupting audio focus).
 audio.addEventListener('pause', () => { isPlaying = false; playBtn.textContent = '▶'; });
-audio.addEventListener('play',  () => { isPlaying = true;  playBtn.textContent = '⏸'; vizIdle.style.display = 'none'; });
+audio.addEventListener('play',  () => { isPlaying = true;  playBtn.textContent = '⏸︎'; vizIdle.style.display = 'none'; });
 
 // iOS suspends the AudioContext when the page is backgrounded/locked, which
 // silences playback even though the <audio> element itself keeps going.
