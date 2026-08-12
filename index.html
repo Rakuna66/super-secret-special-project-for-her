@@ -9,7 +9,7 @@
 <meta name="theme-color" content="#FFB3C6"/>
 <link rel="manifest" href="manifest.json"/>
 <link rel="apple-touch-icon" href="icons/icon-192.png"/>
-<title>A Playlist For Kelly</title>
+<title>💖 A Playlist For Kelly</title>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet"/>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -134,8 +134,20 @@ body.bg-paused .bg-scroll { animation-play-state: paused; }
   border-bottom: 2px solid var(--navy);
   flex-shrink: 0;
 }
-.song-title  { font-size: 11px; color: var(--navy); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.song-artist { font-size: 10px; color: var(--gray); margin-bottom: 6px; }
+.song-title-wrap  { overflow: hidden; white-space: nowrap; margin-bottom: 4px; }
+.song-artist-wrap { overflow: hidden; white-space: nowrap; margin-bottom: 6px; }
+.song-title  { font-size: 11px; color: var(--navy); display: inline-block; white-space: nowrap; }
+.song-artist { font-size: 10px; color: var(--gray); display: inline-block; white-space: nowrap; }
+.song-title.marquee, .song-artist.marquee {
+  animation-name: marqueeScroll;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+@keyframes marqueeScroll {
+  0%, 10%   { transform: translateX(0); }
+  45%, 60%  { transform: translateX(var(--marquee-dist, 0)); }
+  95%, 100% { transform: translateX(0); }
+}
 .song-why {
   font-size: 10px; color: #6B5B95; line-height: 1.9;
   border-left: 3px solid var(--lavender); padding-left: 8px;
@@ -406,14 +418,14 @@ input[type=range]::-webkit-slider-thumb {
       <div class="dot dot-y"></div>
       <div class="dot dot-g"></div>
     </div>
-    <div class="titlebar-title">♡ A PLAYLIST FOR MY LOVE ♡</div>
+    <div class="titlebar-title">💖 A PLAYLIST FOR MY LOVE 💖</div>
     <div style="width:37px"></div>
   </div>
 
   <!-- Tab nav -->
   <div class="tab-nav">
-    <button class="tab-btn active" id="tabPlayer" onclick="switchTab('player')">♪ PLAYER</button>
-    <button class="tab-btn" id="tabCard" onclick="switchTab('card')">✉ CARD</button>
+    <button class="tab-btn active" id="tabPlayer" onclick="switchTab('player')">🎵 PLAYER</button>
+    <button class="tab-btn" id="tabCard" onclick="switchTab('card')">💌 CARD</button>
   </div>
 
   <!-- Player view -->
@@ -427,8 +439,8 @@ input[type=range]::-webkit-slider-thumb {
 
   <!-- Song info -->
   <div class="song-info">
-    <div class="song-title"  id="songTitle">Select a song ♪</div>
-    <div class="song-artist" id="songArtist"></div>
+    <div class="song-title-wrap"><div class="song-title" id="songTitle">Select a song ♪</div></div>
+    <div class="song-artist-wrap"><div class="song-artist" id="songArtist"></div></div>
     <div class="song-why"    id="songWhy">Tap a track below to begin ♡</div>
   </div>
 
@@ -691,6 +703,26 @@ function setActive(i) {
   document.querySelectorAll('.pl-item').forEach((el, j) => el.classList.toggle('active', j === i));
 }
 
+// Scrolls text left-and-back when it's too long to fit its container.
+function setupMarquee(el) {
+  el.classList.remove('marquee');
+  el.style.removeProperty('--marquee-dist');
+  requestAnimationFrame(() => {
+    const overflow = el.scrollWidth - el.parentElement.clientWidth;
+    if (overflow > 2) {
+      const distance = overflow + 6;
+      const duration = Math.max(5, distance / 25);
+      el.style.setProperty('--marquee-dist', `-${distance}px`);
+      el.style.animationDuration = `${duration}s`;
+      el.classList.add('marquee');
+    }
+  });
+}
+window.addEventListener('resize', () => {
+  setupMarquee(songTitle);
+  setupMarquee(songArtist);
+});
+
 function loadSong(index, autoplay = false) {
   currentIndex = index;
   const s = songs[index];
@@ -701,6 +733,8 @@ function loadSong(index, autoplay = false) {
   songTitle.textContent  = s.title;
   songArtist.textContent = s.artist;
   songWhy.textContent    = s.why;
+  setupMarquee(songTitle);
+  setupMarquee(songArtist);
 
   if (s.photo) {
     photoImg.src = s.photo;
