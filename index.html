@@ -714,14 +714,14 @@ function setActive(i) {
 }
 
 // Scrolls text left-and-back when it's too long to fit its container.
-function setupMarquee(el) {
+function setupMarquee(el, pxPerSec = 25, minDuration = 5) {
   el.classList.remove('marquee');
   el.style.removeProperty('--marquee-dist');
   requestAnimationFrame(() => {
     const overflow = el.scrollWidth - el.parentElement.clientWidth;
     if (overflow > 2) {
       const distance = overflow + 6;
-      const duration = Math.max(5, distance / 25);
+      const duration = Math.max(minDuration, distance / pxPerSec);
       el.style.setProperty('--marquee-dist', `-${distance}px`);
       el.style.animationDuration = `${duration}s`;
       el.classList.add('marquee');
@@ -731,7 +731,7 @@ function setupMarquee(el) {
 window.addEventListener('resize', () => {
   setupMarquee(songTitle);
   setupMarquee(songArtist);
-  setupMarquee(songWhy);
+  setupMarquee(songWhy, 12, 8);
 });
 
 function loadSong(index, autoplay = false) {
@@ -746,7 +746,7 @@ function loadSong(index, autoplay = false) {
   songWhy.textContent    = s.why;
   setupMarquee(songTitle);
   setupMarquee(songArtist);
-  setupMarquee(songWhy);
+  setupMarquee(songWhy, 12, 8);
 
   if (s.photo) {
     photoImg.src = s.photo;

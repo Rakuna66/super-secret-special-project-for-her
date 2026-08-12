@@ -1,4 +1,4 @@
-const CACHE = 'for-her-v1';
+const CACHE = 'for-her-v2';
 const CORE = ['./', './index.html', './manifest.json'];
 
 self.addEventListener('install', e => {
