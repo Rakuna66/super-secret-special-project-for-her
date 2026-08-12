@@ -9,7 +9,7 @@
 <meta name="theme-color" content="#FFB3C6"/>
 <link rel="manifest" href="manifest.json"/>
 <link rel="apple-touch-icon" href="icons/icon-192.png"/>
-<title>💖 A Playlist For Kelly</title>
+<title>💖 A Playlist For Kelly 💖</title>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet"/>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -165,8 +165,14 @@ body.bg-paused .bg-scroll { animation-play-state: paused; }
   animation-iteration-count: infinite;
 }
 @keyframes marqueeScrollLeft {
-  0%, 8%    { transform: translateX(0); }
-  92%, 100% { transform: translateX(var(--marquee-dist, 0)); }
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.why-sep {
+  display: inline-block;
+  padding: 0 12px;
+  color: var(--lavender);
+  font-style: normal;
 }
 
 /* ── Visualizer ── */
@@ -249,7 +255,7 @@ input[type=range]::-webkit-slider-thumb {
 
 /* ── Playlist ── */
 .playlist {
-  flex: 1; min-height: 110px; overflow-y: auto; background: var(--white);
+  flex: 0 0 auto; overflow-y: auto; background: var(--white);
   -webkit-overflow-scrolling: touch;
 }
 .playlist::-webkit-scrollbar { width: 6px; }
@@ -648,6 +654,7 @@ const durEl     = document.getElementById('durEl');
 const songTitle  = document.getElementById('songTitle');
 const songArtist = document.getElementById('songArtist');
 const songWhy    = document.getElementById('songWhy');
+const photoPanel = document.getElementById('photoPanel');
 const photoImg   = document.getElementById('photoImg');
 const photoEmoji = document.getElementById('photoEmoji');
 const vizIdle    = document.getElementById('vizIdle');
@@ -695,6 +702,13 @@ songs.forEach((s, i) => {
   playlistEl.appendChild(el);
 });
 
+// Lock the playlist to a fixed number of visible rows instead of letting it
+// stretch to fill whatever space is left over — that "leftover space" isn't
+// actually fixed (it depends on the shell's viewport-driven height), so the
+// list itself was a second source of the layout shifting around.
+const firstRow = playlistEl.querySelector('.pl-item');
+if (firstRow) playlistEl.style.height = (firstRow.offsetHeight * 2.5) + 'px';
+
 // Preload just the metadata (duration) for every track so the playlist
 // shows real times up front instead of only after each song has been played.
 songs.forEach((s, i) => {
@@ -732,10 +746,46 @@ function setupMarquee(el, pxPerSec = 25, minDuration = 5) {
     }
   });
 }
+
+// The "why" note gets an endless, seamless loop instead of the bounce above:
+// the text is duplicated with a small separator glyph between copies, then
+// animated linearly from 0% to -50% with no pauses — since the two copies
+// are identical, the loop point is invisible.
+function setupWhyMarquee(el, text, pxPerSec = 18, minDuration = 8) {
+  el.classList.remove('marquee');
+  el.style.removeProperty('animation-duration');
+  el.textContent = text;
+  requestAnimationFrame(() => {
+    const overflow = el.scrollWidth - el.parentElement.clientWidth;
+    if (overflow > 2) {
+      el.textContent = '';
+      const seg = () => { const s = document.createElement('span'); s.textContent = text; return s; };
+      const sep = () => { const s = document.createElement('span'); s.className = 'why-sep'; s.textContent = '✦'; return s; };
+      el.append(seg(), sep(), seg(), sep());
+      requestAnimationFrame(() => {
+        const singleWidth = el.scrollWidth / 2;
+        el.style.animationDuration = `${Math.max(minDuration, singleWidth / pxPerSec)}s`;
+        el.classList.add('marquee');
+      });
+    }
+  });
+}
+
+// Pin the photo panel to an explicit pixel height instead of leaving it to
+// aspect-ratio + a vh-based max-height, which can recompute (and visibly
+// shift) as the mobile browser chrome shows/hides — independent of which
+// song is playing, but easy to mistake for "the picture is resizing."
+function syncPhotoPanelHeight() {
+  const capPx = Math.min(340, window.innerHeight * 0.33);
+  photoPanel.style.height = Math.min(photoPanel.offsetWidth, capPx) + 'px';
+}
+syncPhotoPanelHeight();
+
 window.addEventListener('resize', () => {
   setupMarquee(songTitle);
   setupMarquee(songArtist);
-  setupMarquee(songWhy, 12, 8);
+  setupWhyMarquee(songWhy, songs[currentIndex].why);
+  syncPhotoPanelHeight();
 });
 
 function loadSong(index, autoplay = false) {
@@ -747,10 +797,9 @@ function loadSong(index, autoplay = false) {
 
   songTitle.textContent  = s.title;
   songArtist.textContent = s.artist;
-  songWhy.textContent    = s.why;
   setupMarquee(songTitle);
   setupMarquee(songArtist);
-  setupMarquee(songWhy, 12, 8);
+  setupWhyMarquee(songWhy, s.why);
 
   if (s.photo) {
     photoImg.src = s.photo;
