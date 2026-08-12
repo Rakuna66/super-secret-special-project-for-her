@@ -160,9 +160,13 @@ body.bg-paused .bg-scroll { animation-play-state: paused; }
   display: inline-block; white-space: nowrap;
 }
 .song-why.marquee {
-  animation-name: marqueeScroll;
+  animation-name: marqueeScrollLeft;
   animation-timing-function: linear;
   animation-iteration-count: infinite;
+}
+@keyframes marqueeScrollLeft {
+  0%, 8%    { transform: translateX(0); }
+  92%, 100% { transform: translateX(var(--marquee-dist, 0)); }
 }
 
 /* ── Visualizer ── */
@@ -819,6 +823,14 @@ function ensureAudioCtx() {
   const source = audioCtx.createMediaElementSource(audio);
   source.connect(analyser);
   analyser.connect(audioCtx.destination);
+
+  // iOS can silently suspend the context (e.g. right as the screen locks)
+  // without ever going through our own pause/resume code. Catch that the
+  // moment it happens and try to claw it back while a track should be
+  // playing, instead of only checking on visibilitychange/pageshow.
+  audioCtx.addEventListener('statechange', () => {
+    if (audioCtx.state === 'suspended' && isPlaying) audioCtx.resume();
+  });
 }
 
 // Play / Pause
@@ -863,8 +875,22 @@ audio.addEventListener('ended', () => {
 
 // Keep the play/pause button in sync even when playback stops for reasons
 // outside our own click handler (e.g. a call interrupting audio focus).
-audio.addEventListener('pause', () => { isPlaying = false; playBtn.textContent = '▶'; });
-audio.addEventListener('play',  () => { isPlaying = true;  playBtn.textContent = '⏸︎'; vizIdle.style.display = 'none'; });
+audio.addEventListener('pause', () => {
+  isPlaying = false;
+  playBtn.textContent = '▶';
+  if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+});
+audio.addEventListener('play',  () => {
+  isPlaying = true;
+  playBtn.textContent = '⏸︎';
+  vizIdle.style.display = 'none';
+  if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+  // The 'play' event firing means the element itself is unblocked — use
+  // that same beat to retry resuming the (possibly still-suspended) audio
+  // graph, since iOS doesn't always honor resume() called from inside the
+  // lock-screen action handler itself.
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+});
 
 // iOS suspends the AudioContext when the page is backgrounded/locked, which
 // silences playback even though the <audio> element itself keeps going.
