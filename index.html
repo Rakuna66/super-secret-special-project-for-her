@@ -96,7 +96,7 @@ body.bg-paused .bg-scroll { animation-play-state: paused; }
   position: relative;
   width: 100%;
   aspect-ratio: 1 / 1;
-  max-height: min(300px, 28vh);
+  max-height: min(340px, 33vh);
   background: var(--lavender);
   flex-shrink: 0;
   border-bottom: 3px solid var(--navy);
@@ -148,13 +148,26 @@ body.bg-paused .bg-scroll { animation-play-state: paused; }
   45%, 60%  { transform: translateX(var(--marquee-dist, 0)); }
   95%, 100% { transform: translateX(0); }
 }
+.song-why-wrap {
+  height: 3.8em;
+  overflow: hidden;
+  border-left: 3px solid var(--lavender); padding-left: 8px;
+  cursor: pointer;
+}
 .song-why {
   font-size: 10px; color: #6B5B95; line-height: 1.9;
-  border-left: 3px solid var(--lavender); padding-left: 8px;
   font-family: Georgia, serif; font-style: italic;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-  overflow: hidden;
-  cursor: pointer;
+  display: block;
+}
+.song-why.marquee-v {
+  animation-name: marqueeScrollV;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+@keyframes marqueeScrollV {
+  0%, 10%   { transform: translateY(0); }
+  45%, 60%  { transform: translateY(var(--marquee-dist-v, 0)); }
+  95%, 100% { transform: translateY(0); }
 }
 
 /* ── Visualizer ── */
@@ -441,7 +454,7 @@ input[type=range]::-webkit-slider-thumb {
   <div class="song-info">
     <div class="song-title-wrap"><div class="song-title" id="songTitle">Select a song ♪</div></div>
     <div class="song-artist-wrap"><div class="song-artist" id="songArtist"></div></div>
-    <div class="song-why"    id="songWhy">Tap a track below to begin ♡</div>
+    <div class="song-why-wrap"><div class="song-why" id="songWhy">Tap a track below to begin ♡</div></div>
   </div>
 
   <!-- Visualizer -->
@@ -720,9 +733,26 @@ function setupMarquee(el) {
     }
   });
 }
+
+// Same idea, but scrolls up-and-back for the multi-line "why" note.
+function setupMarqueeV(el) {
+  el.classList.remove('marquee-v');
+  el.style.removeProperty('--marquee-dist-v');
+  requestAnimationFrame(() => {
+    const overflow = el.scrollHeight - el.parentElement.clientHeight;
+    if (overflow > 2) {
+      const distance = overflow + 4;
+      const duration = Math.max(8, distance / 12);
+      el.style.setProperty('--marquee-dist-v', `-${distance}px`);
+      el.style.animationDuration = `${duration}s`;
+      el.classList.add('marquee-v');
+    }
+  });
+}
 window.addEventListener('resize', () => {
   setupMarquee(songTitle);
   setupMarquee(songArtist);
+  setupMarqueeV(songWhy);
 });
 
 function loadSong(index, autoplay = false) {
@@ -737,6 +767,7 @@ function loadSong(index, autoplay = false) {
   songWhy.textContent    = s.why;
   setupMarquee(songTitle);
   setupMarquee(songArtist);
+  setupMarqueeV(songWhy);
 
   if (s.photo) {
     photoImg.src = s.photo;
