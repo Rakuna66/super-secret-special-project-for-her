@@ -802,7 +802,10 @@ function loadSong(index, autoplay = false) {
     });
     navigator.mediaSession.setActionHandler('previoustrack', () => go(-1));
     navigator.mediaSession.setActionHandler('nexttrack',     () => go(1));
-    navigator.mediaSession.setActionHandler('play',  () => audio.play());
+    navigator.mediaSession.setActionHandler('play',  () => {
+      ensureAudioCtx();
+      audio.play().catch(err => console.warn('Playback blocked:', err));
+    });
     navigator.mediaSession.setActionHandler('pause', () => audio.pause());
   }
 }
