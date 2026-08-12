@@ -149,25 +149,20 @@ body.bg-paused .bg-scroll { animation-play-state: paused; }
   95%, 100% { transform: translateX(0); }
 }
 .song-why-wrap {
-  height: 3.8em;
   overflow: hidden;
+  white-space: nowrap;
   border-left: 3px solid var(--lavender); padding-left: 8px;
   cursor: pointer;
 }
 .song-why {
   font-size: 10px; color: #6B5B95; line-height: 1.9;
   font-family: Georgia, serif; font-style: italic;
-  display: block;
+  display: inline-block; white-space: nowrap;
 }
-.song-why.marquee-v {
-  animation-name: marqueeScrollV;
+.song-why.marquee {
+  animation-name: marqueeScroll;
   animation-timing-function: linear;
   animation-iteration-count: infinite;
-}
-@keyframes marqueeScrollV {
-  0%, 10%   { transform: translateY(0); }
-  45%, 60%  { transform: translateY(var(--marquee-dist-v, 0)); }
-  95%, 100% { transform: translateY(0); }
 }
 
 /* ── Visualizer ── */
@@ -733,26 +728,10 @@ function setupMarquee(el) {
     }
   });
 }
-
-// Same idea, but scrolls up-and-back for the multi-line "why" note.
-function setupMarqueeV(el) {
-  el.classList.remove('marquee-v');
-  el.style.removeProperty('--marquee-dist-v');
-  requestAnimationFrame(() => {
-    const overflow = el.scrollHeight - el.parentElement.clientHeight;
-    if (overflow > 2) {
-      const distance = overflow + 4;
-      const duration = Math.max(8, distance / 12);
-      el.style.setProperty('--marquee-dist-v', `-${distance}px`);
-      el.style.animationDuration = `${duration}s`;
-      el.classList.add('marquee-v');
-    }
-  });
-}
 window.addEventListener('resize', () => {
   setupMarquee(songTitle);
   setupMarquee(songArtist);
-  setupMarqueeV(songWhy);
+  setupMarquee(songWhy);
 });
 
 function loadSong(index, autoplay = false) {
@@ -767,7 +746,7 @@ function loadSong(index, autoplay = false) {
   songWhy.textContent    = s.why;
   setupMarquee(songTitle);
   setupMarquee(songArtist);
-  setupMarqueeV(songWhy);
+  setupMarquee(songWhy);
 
   if (s.photo) {
     photoImg.src = s.photo;
