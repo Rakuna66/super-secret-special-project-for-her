@@ -30,6 +30,13 @@
 html, body {
   height: 100%;
   overflow: hidden;
+  /* iOS/WebKit inflates text inside wide, overflowing blocks ("font boosting"),
+     so a title or why-note long enough to marquee rendered visibly larger than
+     one that fits — the same 9px reading as two different sizes from song to
+     song. Pin everything to the authored size. 100% rather than none, so a
+     deliberate user zoom still works. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   background: var(--cream);
   font-family: var(--px);
   background-image:
