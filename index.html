@@ -24,6 +24,7 @@
   --gray:     #8B7FA8;
   --white:    #FFFFFF;
   --px: 'Press Start 2P', monospace;
+  --sprites: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cpath fill='%23FFB3C6' fill-opacity='0.6' d='M14 12c-2-3-7-3-7 1 0 3 7 8 7 8s7-5 7-8c0-4-5-4-7-1z'/%3E%3Cpath fill='%23C9B8E8' fill-opacity='0.6' d='M46 8l2 5 5 2-5 2-2 5-2-5-5-2 5-2z'/%3E%3Ccircle fill='%23B8E8D0' fill-opacity='0.6' cx='22' cy='42' r='3'/%3E%3Ccircle fill='%23FFD6B3' fill-opacity='0.6' cx='50' cy='50' r='2.5'/%3E%3C/svg%3E");
 }
 
 html, body {
@@ -46,7 +47,7 @@ html, body {
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cpath fill='%23FFB3C6' fill-opacity='0.6' d='M14 12c-2-3-7-3-7 1 0 3 7 8 7 8s7-5 7-8c0-4-5-4-7-1z'/%3E%3Cpath fill='%23C9B8E8' fill-opacity='0.6' d='M46 8l2 5 5 2-5 2-2 5-2-5-5-2 5-2z'/%3E%3Ccircle fill='%23B8E8D0' fill-opacity='0.6' cx='22' cy='42' r='3'/%3E%3Ccircle fill='%23FFD6B3' fill-opacity='0.6' cx='50' cy='50' r='2.5'/%3E%3C/svg%3E");
+  background-image: var(--sprites);
   background-repeat: repeat;
   background-size: 64px 64px;
   animation: bgDrift 14s linear infinite;
@@ -411,9 +412,171 @@ input[type=range]::-webkit-slider-thumb {
   font-family: Georgia, serif; font-size: 13px;
   font-style: italic; color: #6B5B95; text-align: right;
 }
+
+/* ── 8-bit boot screen ─────────────────────────────────────────────────────
+   Sits over the whole app while the pixel font, the first photo and the page
+   itself finish loading. Everything here is pure CSS pixel art so it renders
+   instantly, before the webfont has even been fetched. */
+.boot {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background-color: var(--cream);
+  background-image:
+    linear-gradient(rgba(201,184,232,0.15) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(201,184,232,0.15) 1px, transparent 1px);
+  background-size: 16px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: opacity 0.45s ease;
+}
+.boot.done { opacity: 0; pointer-events: none; }
+
+/* same drifting sprites as the page backdrop, so the boot reads as one world */
+.boot::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--sprites);
+  background-repeat: repeat;
+  background-size: 64px 64px;
+  opacity: 0.5;
+  animation: bgDrift 14s linear infinite;
+  pointer-events: none;
+}
+
+.boot-inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  width: min(340px, calc(100vw - 40px));
+  padding: 26px 22px 24px;
+  background: var(--white);
+  border: 3px solid var(--navy);
+  box-shadow: 6px 6px 0 var(--navy);
+  text-align: center;
+}
+
+/* Text waits for 'Press Start 2P' so she never sees a flash of fallback type.
+   The heart and the bar are drawn in CSS and show up immediately. */
+.boot-title, .boot-pct, .boot-msg { transition: opacity 0.3s ease; }
+.boot-inner:not(.ready) .boot-title,
+.boot-inner:not(.ready) .boot-pct,
+.boot-inner:not(.ready) .boot-msg { opacity: 0; }
+
+/* pixel-art heart: one 8px block, the rest painted with box-shadow */
+.boot-heart-wrap {
+  width: 96px;
+  height: 80px;
+  position: relative;
+  animation: bootHop 1s steps(1, end) infinite;
+}
+.boot-heart {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  box-shadow:
+    16px 0px 0 #1A1A2E, 24px 0px 0 #1A1A2E, 64px 0px 0 #1A1A2E, 72px 0px 0 #1A1A2E,
+    8px 8px 0 #1A1A2E, 16px 8px 0 #FF6B8A, 24px 8px 0 #FF6B8A, 32px 8px 0 #1A1A2E,
+    56px 8px 0 #1A1A2E, 64px 8px 0 #FF6B8A, 72px 8px 0 #FF6B8A, 80px 8px 0 #1A1A2E,
+    0px 16px 0 #1A1A2E, 8px 16px 0 #FF6B8A, 16px 16px 0 #FFFFFF, 24px 16px 0 #FFFFFF,
+    32px 16px 0 #FF6B8A, 40px 16px 0 #1A1A2E, 48px 16px 0 #1A1A2E, 56px 16px 0 #FF6B8A,
+    64px 16px 0 #FF6B8A, 72px 16px 0 #FF6B8A, 80px 16px 0 #FF6B8A, 88px 16px 0 #1A1A2E,
+    0px 24px 0 #1A1A2E, 8px 24px 0 #FF6B8A, 16px 24px 0 #FFFFFF, 24px 24px 0 #FF6B8A,
+    32px 24px 0 #FF6B8A, 40px 24px 0 #FF6B8A, 48px 24px 0 #FF6B8A, 56px 24px 0 #FF6B8A,
+    64px 24px 0 #FF6B8A, 72px 24px 0 #FF6B8A, 80px 24px 0 #FF6B8A, 88px 24px 0 #1A1A2E,
+    0px 32px 0 #1A1A2E, 8px 32px 0 #FF6B8A, 16px 32px 0 #FF6B8A, 24px 32px 0 #FF6B8A,
+    32px 32px 0 #FF6B8A, 40px 32px 0 #FF6B8A, 48px 32px 0 #FF6B8A, 56px 32px 0 #FF6B8A,
+    64px 32px 0 #FF6B8A, 72px 32px 0 #FF6B8A, 80px 32px 0 #FF6B8A, 88px 32px 0 #1A1A2E,
+    8px 40px 0 #1A1A2E, 16px 40px 0 #FF6B8A, 24px 40px 0 #FF6B8A, 32px 40px 0 #FF6B8A,
+    40px 40px 0 #FF6B8A, 48px 40px 0 #FF6B8A, 56px 40px 0 #FF6B8A, 64px 40px 0 #FF6B8A,
+    72px 40px 0 #FF6B8A, 80px 40px 0 #1A1A2E, 16px 48px 0 #1A1A2E, 24px 48px 0 #FF6B8A,
+    32px 48px 0 #FF6B8A, 40px 48px 0 #FF6B8A, 48px 48px 0 #FF6B8A, 56px 48px 0 #FF6B8A,
+    64px 48px 0 #FF6B8A, 72px 48px 0 #1A1A2E, 24px 56px 0 #1A1A2E, 32px 56px 0 #FF6B8A,
+    40px 56px 0 #FF6B8A, 48px 56px 0 #FF6B8A, 56px 56px 0 #FF6B8A, 64px 56px 0 #1A1A2E,
+    32px 64px 0 #1A1A2E, 40px 64px 0 #FF6B8A, 48px 64px 0 #FF6B8A, 56px 64px 0 #1A1A2E,
+    40px 72px 0 #1A1A2E, 48px 72px 0 #1A1A2E;
+}
+@keyframes bootHop {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+
+.boot-title {
+  font-size: 12px;
+  line-height: 2;
+  letter-spacing: 2px;
+  color: var(--navy);
+  text-shadow: 2px 2px 0 var(--pink);
+}
+
+.boot-bar {
+  position: relative;
+  width: min(260px, 66vw);
+  height: 22px;
+  background: var(--white);
+  border: 3px solid var(--navy);
+  box-shadow: 4px 4px 0 var(--navy);
+  overflow: hidden;
+}
+.boot-bar-fill {
+  width: 0%;
+  height: 100%;
+  background: repeating-linear-gradient(90deg,
+    #FF6B8A 0 10px,
+    var(--pink) 10px 20px);
+}
+/* same scanline treatment as the photo panel */
+.boot-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(26,26,46,0.10) 0 2px,
+    transparent 2px 4px);
+  pointer-events: none;
+}
+
+.boot-pct {
+  font-size: 10px;
+  color: var(--navy);
+  letter-spacing: 1px;
+}
+.boot-msg {
+  font-size: 8px;
+  line-height: 1.8;
+  color: var(--gray);
+  min-height: 2.6em;
+  max-width: 260px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boot-heart-wrap, .boot::before { animation: none; }
+}
 </style>
 </head>
 <body>
+
+<!-- 8-bit boot screen (removed from the DOM once loading finishes) -->
+<div class="boot" id="bootScreen">
+  <div class="boot-inner">
+    <div class="boot-heart-wrap" aria-hidden="true"><div class="boot-heart"></div></div>
+    <div class="boot-title">A PLAYLIST<br/>FOR MY LOVE</div>
+    <div class="boot-bar" id="bootBar" role="progressbar" aria-label="Loading"
+         aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div class="boot-bar-fill" id="bootFill"></div>
+    </div>
+    <div class="boot-pct" id="bootPct">0%</div>
+    <div class="boot-msg" id="bootMsg" aria-hidden="true">warming up the mixtape</div>
+  </div>
+</div>
 
 <div class="bg-scroll" aria-hidden="true"></div>
 
@@ -1027,6 +1190,111 @@ function switchTab(tab) {
   document.getElementById('tabPlayer').classList.toggle('active', tab === 'player');
   document.getElementById('tabCard').classList.toggle('active', tab === 'card');
 }
+
+// ── 8-bit boot screen ──
+// Holds the pixel loader over the app until the webfont, the first photo and
+// the page's own load event are in. Progress is milestone-driven rather than
+// faked, but a hard timeout always releases it — a slow photo on hotel wifi
+// must never leave her staring at a loading bar.
+(function bootScreen() {
+  const boot = document.getElementById('bootScreen');
+  if (!boot) return;
+
+  const inner = boot.querySelector('.boot-inner');
+  const bar   = document.getElementById('bootBar');
+  const fill  = document.getElementById('bootFill');
+  const pctEl = document.getElementById('bootPct');
+  const msgEl = document.getElementById('bootMsg');
+
+  const MESSAGES = [
+    'warming up the mixtape',
+    'dusting off the cassettes',
+    'tuning the tiny speakers',
+    'stacking the pixels',
+    'picking the right words',
+    'loading feelings',
+  ];
+
+  const START  = performance.now();
+  let last = START;
+  const MIN_MS = 1100;   // long enough to actually be seen on a warm cache
+  const MAX_MS = 6000;   // never hold the app hostage
+
+  let target = 8, shown = 0, lastPct = -1, finished = false;
+  const credit = amount => { target = Math.min(100, target + amount); };
+
+  // Safety net: requestAnimationFrame stalls in a backgrounded tab, so the
+  // draw loop alone can't be trusted to ever reach 100%. This always fires.
+  const bailout = setTimeout(finish, MAX_MS + 600);
+
+  // Milestone 1 — the pixel font. Text fades in with it so there's no flash of
+  // fallback type; the fallback timer covers Google Fonts being unreachable.
+  (document.fonts ? document.fonts.ready : Promise.resolve())
+    .then(() => { inner.classList.add('ready'); credit(22); });
+  setTimeout(() => inner.classList.add('ready'), 1200);
+
+  // Milestone 2 — the first song's photo, so the panel isn't blank on reveal.
+  const firstPhoto = songs[0] && songs[0].photo;
+  if (firstPhoto) {
+    const img = new Image();
+    img.onload = img.onerror = () => credit(30);
+    img.src = firstPhoto;
+  } else {
+    credit(30);
+  }
+
+  // Milestone 3 — everything else the document pulled in.
+  if (document.readyState === 'complete') credit(40);
+  else window.addEventListener('load', () => credit(40));
+
+  let msgIndex = 0, dots = 0;
+  const msgTimer = setInterval(() => {
+    dots = (dots + 1) % 4;
+    if (dots === 0) msgIndex = (msgIndex + 1) % MESSAGES.length;
+    msgEl.textContent = MESSAGES[msgIndex] + '.'.repeat(dots);
+  }, 320);
+
+  function tick(now) {
+    const t = typeof now === 'number' ? now : performance.now();
+    const dt = Math.min(100, t - last);
+    last = t;
+    const elapsed = t - START;
+    if (elapsed > MAX_MS) target = 100;
+
+    // Creep toward the target so the bar is never perfectly still. Rate is per
+    // second, not per frame, so it looks the same on a 60Hz and a 120Hz screen;
+    // the floor stops it easing toward the end forever.
+    shown = Math.min(target, shown + Math.max(18, (target - shown) * 3.6) * dt / 1000);
+    fill.style.width = shown.toFixed(1) + '%';
+
+    const pct = Math.round(shown);
+    if (pct !== lastPct) {
+      lastPct = pct;
+      pctEl.textContent = pct + '%';
+      bar.setAttribute('aria-valuenow', pct);
+    }
+
+    if (shown >= 99.5 && elapsed >= MIN_MS) { finish(); return; }
+    requestAnimationFrame(tick);
+  }
+
+  function finish() {
+    if (finished) return;
+    finished = true;
+    clearInterval(msgTimer);
+    clearTimeout(bailout);
+    fill.style.width = '100%';
+    pctEl.textContent = '100%';
+    bar.setAttribute('aria-valuenow', 100);
+    msgEl.textContent = 'ready ♡';
+    setTimeout(() => {
+      boot.classList.add('done');
+      setTimeout(() => boot.remove(), 500);
+    }, 420);
+  }
+
+  requestAnimationFrame(tick);
+})();
 </script>
 </body>
 </html>
