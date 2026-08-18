@@ -18,6 +18,27 @@ python -m http.server 8000    # then open http://localhost:8000
 
 Most behavior worth testing (iOS lock screen, audio resume after backgrounding, mobile viewport sizing) only reproduces on a real phone against the deployed Pages URL.
 
+### Verifying without a phone
+
+Headless Chrome renders this faithfully and is worth using — a screenshot is one command:
+
+```
+chrome --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=2 --window-size=460,900 --virtual-time-budget=15000 --screenshot=out.png http://localhost:8000/
+```
+
+Four of its quirks will mislead you, and all four have already cost time here:
+
+- **It does not advance CSS animations under `--virtual-time-budget`.** Screenshots only ever catch the first or last frame, so an animation can look broken when it is fine. To capture a specific moment, freeze it: copy the page, add `animation-play-state: paused !important` and an `animation-delay` of `-t` for the moment you want (for an animation that already has a delay, use `delay - t`). That renders exact frames deterministically.
+- **It reports `prefers-reduced-motion: reduce`.** Every animation here is disabled under that query, so nothing moves at all until you neutralise it — rewrite `@media (prefers-reduced-motion: reduce)` to something unmatchable in the copy under test. Discovering this is also what surfaced the specificity bug in those overrides, so it is worth checking deliberately rather than working around.
+- **It ignores `--window-size` for layout.** The viewport reports ~500px whatever you pass, which makes narrow-screen tests silently meaningless. Force the dimension on the element instead — `.boot-inner { width: 280px }` is the card at a 320px viewport — and assert on measurements rather than eyeballing the screenshot.
+- **It exits before `decodeAudioData` resolves**, so the spectrogram path cannot be driven end to end in the browser.
+
+Because of that last one, test the DSP in Node against real audio instead. Decode a track with `ffmpeg -i songs/x.mp3 -ac 1 -ar 11025 -f f32le out.pcm`, extract the block from `const BANDS` down to the visualizer comment into an `.mjs`, and drive `buildSpectrogram` with a stub buffer (`{sampleRate, length, duration, numberOfChannels, getChannelData}`). Assertions that actually catch things: a pure tone lands in its expected FFT bin, an amplitude ramp produces a monotonically rising spectrogram, digital silence stays at zero, and the spectrogram correlates with an independently computed time-domain envelope — a real track scores about 0.87. The normalisation and silent-track bugs were both found this way, not by looking at it.
+
+For the draw path specifically, a 120Hz→5kHz chirp is a good probe: the peak bar must sweep left to right, which distinguishes "follows the audio" from "follows the clock".
+
+Anything touching the audio *session* — lock screen transport, background playback, the ringer switch — reproduces only on a real phone.
+
 ## Architecture
 
 Everything is in `index.html` (~1770 lines): markup, CSS, and the player engine in one `<script>`. The only external request is the Google Fonts stylesheet for `Press Start 2P`. Supporting files: `sw.js` (service worker), `manifest.json` (PWA), `songs/*.mp3`, `photos/*`, `icons/*`.
