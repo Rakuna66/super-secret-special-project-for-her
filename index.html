@@ -944,6 +944,24 @@ songWhy.addEventListener('click', () => {
 let currentIndex = 0;
 let isPlaying = false;
 let audioCtx, analyser, src, dataArray, animId;
+let primed = false, priming = false;
+
+// createMediaElementSource permanently reroutes the <audio> element through
+// the WebAudio graph, and iOS suspends that graph the moment the screen locks
+// — which is exactly the silence this player kept hitting. A backgrounded page
+// can't resume a suspended context (no gesture available), so on WebKit we
+// never build the graph at all and let the element talk straight to the
+// hardware, which is the only path iOS keeps alive behind the lock screen.
+// The visualizer falls back to a synthetic spectrum there; see drawViz.
+// Erring toward "on" is deliberate: a stand-in visualizer is cosmetic, silent
+// playback is not.
+const NATIVE_AUDIO_ONLY = (() => {
+  const ua = navigator.userAgent || '';
+  const iOS = /iPad|iPhone|iPod/.test(ua) || /iPad|iPhone|iPod/.test(navigator.platform || '');
+  const iPadOS = navigator.maxTouchPoints > 1 && /Mac/.test(ua);   // iPadOS 13+ claims to be a Mac
+  const safari = /^((?!chrome|crios|android).)*safari/i.test(ua);
+  return iOS || iPadOS || safari;
+})();
 
 const palettes = [
   ['#FFB3C6','#C9B8E8','#B8E8D0','#FFD6B3','#FFB3C6','#C9B8E8'],
@@ -1095,14 +1113,94 @@ function loadSong(index, autoplay = false) {
       title:  s.title,
       artist: s.artist,
       album:  'A Playlist For Kelly',
+      artwork: artworkFor(s),
     });
-    navigator.mediaSession.setActionHandler('previoustrack', () => go(-1));
-    navigator.mediaSession.setActionHandler('nexttrack',     () => go(1));
-    navigator.mediaSession.setActionHandler('play',  () => {
+    // Safari throws NotSupportedError for actions it doesn't implement, and an
+    // unguarded throw here would abandon every handler after it — which is why
+    // each one is set through setHandler rather than called directly.
+    setHandler('previoustrack', () => go(-1));
+    setHandler('nexttrack',     () => go(1));
+    setHandler('play',  () => {
       ensureAudioCtx();
       audio.play().catch(err => console.warn('Playback blocked:', err));
     });
-    navigator.mediaSession.setActionHandler('pause', () => audio.pause());
+    setHandler('pause', () => audio.pause());
+    setHandler('stop',  () => { audio.pause(); audio.currentTime = 0; });
+    setHandler('seekto', d => {
+      if (!d || typeof d.seekTime !== 'number') return;
+      if (d.fastSeek && audio.fastSeek) audio.fastSeek(d.seekTime);
+      else audio.currentTime = d.seekTime;
+      updatePositionState();
+    });
+    setHandler('seekbackward', d => {
+      audio.currentTime = Math.max(0, audio.currentTime - ((d && d.seekOffset) || 10));
+      updatePositionState();
+    });
+    setHandler('seekforward', d => {
+      const end = audio.duration || Infinity;
+      audio.currentTime = Math.min(end, audio.currentTime + ((d && d.seekOffset) || 10));
+      updatePositionState();
+    });
+  }
+}
+
+// ── Lock screen plumbing ──
+function setHandler(action, fn) {
+  try { navigator.mediaSession.setActionHandler(action, fn); }
+  catch (e) { /* action not supported on this browser — the rest still register */ }
+}
+
+// The lock screen wants an absolute URL; a relative one silently shows nothing.
+function artworkFor(s) {
+  if (!s.photo) return [];
+  const ext = s.photo.split('.').pop().toLowerCase();
+  const type = ext === 'png' ? 'image/png' : 'image/jpeg';
+  return [{ src: new URL(s.photo, location.href).href, sizes: '512x512', type }];
+}
+
+// Feeds the lock screen's scrubber. Safari throws if duration isn't settled
+// yet or position runs past it, so this is guarded on both sides.
+function updatePositionState() {
+  if (!('mediaSession' in navigator) || !navigator.mediaSession.setPositionState) return;
+  if (!isFinite(audio.duration) || audio.duration <= 0) return;
+  try {
+    navigator.mediaSession.setPositionState({
+      duration: audio.duration,
+      playbackRate: audio.playbackRate || 1,
+      position: Math.max(0, Math.min(audio.currentTime, audio.duration)),
+    });
+  } catch (e) { /* transient state mid-load */ }
+}
+
+// iOS only hands a page the Now Playing controls once it has actually played
+// audio, so there's no way to open the page, lock the phone and press play
+// unless something armed the audio session first. PRESS START spends its
+// gesture doing exactly that: play muted, pause, restore. Nothing is audible,
+// but from here the lock screen transport exists and she can start it there.
+function primeAudio() {
+  if (primed) return;
+  primed = true;
+  priming = true;
+
+  const restore = () => {
+    audio.muted = false;
+    audio.volume = parseFloat(volSlider.value);
+    priming = false;
+    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+  };
+
+  audio.muted = true;
+  let p;
+  try { p = audio.play(); } catch (e) { restore(); return; }
+
+  if (p && typeof p.then === 'function') {
+    p.then(() => {
+      audio.pause();
+      audio.currentTime = 0;
+      setTimeout(restore, 0);   // let the pause event land while still priming
+    }).catch(() => { restore(); });
+  } else {
+    setTimeout(() => { audio.pause(); audio.currentTime = 0; restore(); }, 0);
   }
 }
 
@@ -1128,6 +1226,10 @@ function go(dir, forcePlay) {
 }
 
 function ensureAudioCtx() {
+  // No graph on WebKit — see NATIVE_AUDIO_ONLY. Everything downstream already
+  // guards on `audioCtx` being set, so the four resume paths simply go inert
+  // here rather than needing to be unpicked.
+  if (NATIVE_AUDIO_ONLY) return;
   if (audioCtx) { if (audioCtx.state === 'suspended') audioCtx.resume(); return; }
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   analyser = audioCtx.createAnalyser();
@@ -1189,15 +1291,18 @@ audio.addEventListener('ended', () => {
 // Keep the play/pause button in sync even when playback stops for reasons
 // outside our own click handler (e.g. a call interrupting audio focus).
 audio.addEventListener('pause', () => {
+  if (priming) return;
   isPlaying = false;
   playBtn.textContent = '▶';
   if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
 });
 audio.addEventListener('play',  () => {
+  if (priming) return;   // the silent arming pass isn't playback
   isPlaying = true;
   playBtn.textContent = '⏸︎';
   vizIdle.style.display = 'none';
   if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+  updatePositionState();
   // The 'play' event firing means the element itself is unblocked — use
   // that same beat to retry resuming the (possibly still-suspended) audio
   // graph, since iOS doesn't always honor resume() called from inside the
@@ -1217,12 +1322,17 @@ window.addEventListener('pageshow', () => {
 });
 
 // Progress
+let lastPosPush = 0;
 audio.addEventListener('timeupdate', () => {
   if (!audio.duration) return;
   pFill.style.width = (audio.currentTime / audio.duration * 100) + '%';
   timeEl.textContent = fmt(audio.currentTime);
+  // Once a second is plenty for the lock screen, and cheap while backgrounded.
+  const now = audio.currentTime;
+  if (Math.abs(now - lastPosPush) >= 1) { lastPosPush = now; updatePositionState(); }
 });
 audio.addEventListener('loadedmetadata', () => {
+  updatePositionState();
   durEl.textContent = fmt(audio.duration);
   const d = document.getElementById(`dur-${currentIndex}`);
   if (d) d.textContent = fmt(audio.duration);
@@ -1237,6 +1347,7 @@ function seek(e) {
   audio.currentTime = pct * audio.duration;
 }
 pTrack.addEventListener('click', seek);
+pTrack.addEventListener('click', updatePositionState);
 pTrack.addEventListener('touchstart', seek, { passive: true });
 
 // Volume
@@ -1251,6 +1362,24 @@ function resizeCanvas() {
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
 
+// Stand-in spectrum for platforms where the analyser would cost us lock-screen
+// playback (see NATIVE_AUDIO_ONLY). Three sines at incommensurate rates never
+// line up, so at 32 chunky bars it reads as a bouncing equaliser; the tilt just
+// makes the low end run hotter the way a real spectrum does. Driven off
+// currentTime, so it freezes the instant playback stops.
+const fakeLevels = new Float32Array(32);
+function sampleFakeLevels(t) {
+  const count = fakeLevels.length;
+  for (let i = 0; i < count; i++) {
+    const v = 0.55 * Math.sin(t * 2.7 + i * 0.90)
+            + 0.30 * Math.sin(t * 4.3 + i * 2.10)
+            + 0.25 * Math.sin(t * 7.1 + i * 0.35);
+    const tilt = 1 - (i / count) * 0.40;
+    fakeLevels[i] = Math.max(0, Math.min(1, (0.52 + v * 0.52) * tilt));
+  }
+}
+
+let vizGain = 0;   // eases the bars in and out instead of snapping to silence
 function drawViz() {
   requestAnimationFrame(drawViz);
   const ctx = canvas.getContext('2d');
@@ -1258,15 +1387,21 @@ function drawViz() {
   ctx.clearRect(0, 0, W, H);
   ctx.fillStyle = '#1A1A2E';
   ctx.fillRect(0, 0, W, H);
-  if (!analyser) return;
-  analyser.getByteFrequencyData(dataArray);
+
+  const synthetic = !analyser;
+  if (synthetic) sampleFakeLevels(audio.currentTime || 0);
+  else analyser.getByteFrequencyData(dataArray);
+
+  vizGain += ((isPlaying ? 1 : 0) - vizGain) * 0.08;
+  if (synthetic && vizGain < 0.01) return;
+
   const palette = palettes[currentIndex % palettes.length];
-  const count = dataArray.length;
+  const count = synthetic ? fakeLevels.length : dataArray.length;
   const barW = Math.floor(W / count);
   const gap = Math.max(1, Math.floor(barW * 0.15));
   const snap = Math.ceil(4 * devicePixelRatio);
   for (let i = 0; i < count; i++) {
-    const val = dataArray[i] / 255;
+    const val = synthetic ? fakeLevels[i] * vizGain : dataArray[i] / 255;
     const barH = Math.max(snap, Math.floor(val * (H - snap) / snap) * snap);
     ctx.fillStyle = palette[i % palette.length];
     ctx.fillRect(i * barW, H - barH, barW - gap, barH);
@@ -1411,6 +1546,10 @@ function switchTab(tab) {
   function dismiss() {
     if (dismissed || !finished) return;
     dismissed = true;
+    // Spend the tap on the audio session before anything else — it is the only
+    // user gesture guaranteed to happen, and iOS won't hand over the lock
+    // screen transport without one.
+    primeAudio();
     boot.classList.add('done');
     // Start the power-on partway through the fade so the two read as one
     // motion — the boot screen dissolving into the tube coming to life.
