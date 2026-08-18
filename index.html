@@ -943,7 +943,7 @@ songWhy.addEventListener('click', () => {
 
 let currentIndex = 0;
 let isPlaying = false;
-let audioCtx, analyser, src, dataArray, animId;
+let audioCtx, analyser, dataArray;
 let primed = false, priming = false;
 
 // createMediaElementSource permanently reroutes the <audio> element through
@@ -994,12 +994,23 @@ if (firstRow) playlistEl.style.height = (firstRow.offsetHeight * 2.5) + 'px';
 // Preload just the metadata (duration) for every track so the playlist
 // shows real times up front instead of only after each song has been played.
 songs.forEach((s, i) => {
-  const probe = new Audio();
+  let probe = new Audio();
   probe.preload = 'metadata';
+  // Read the duration, then let the element go. Without this the page holds a
+  // live media element per track for its entire life — each hanging on to
+  // whatever it buffered — for a number it only ever needs once.
+  const release = () => {
+    if (!probe) return;
+    probe.removeAttribute('src');
+    probe.load();                 // abort whatever fetch is still in flight
+    probe = null;
+  };
   probe.addEventListener('loadedmetadata', () => {
     const d = document.getElementById(`dur-${i}`);
-    if (d) d.textContent = fmt(probe.duration);
-  });
+    if (d && probe) d.textContent = fmt(probe.duration);
+    release();
+  }, { once: true });
+  probe.addEventListener('error', release, { once: true });   // never leave one hanging
   probe.src = s.src;
 });
 
@@ -1180,7 +1191,11 @@ function primeAudio() {
   primed = true;
   priming = true;
 
+  // Idempotent: whichever of the paths below gets here first wins.
+  let guard;
   const restore = () => {
+    if (!priming) return;
+    clearTimeout(guard);
     audio.muted = false;
     audio.volume = parseFloat(volSlider.value);
     priming = false;
@@ -1190,6 +1205,9 @@ function primeAudio() {
   audio.muted = true;
   let p;
   try { p = audio.play(); } catch (e) { restore(); return; }
+  // If play() never settles — a stalled element on bad network — priming would
+  // stay true and the play/pause listeners would ignore real playback forever.
+  guard = setTimeout(restore, 3000);
 
   if (p && typeof p.then === 'function') {
     p.then(() => {
@@ -1211,6 +1229,7 @@ function go(dir, forcePlay) {
   if (shuffleOn && songs.length > 1) {
     if (dir > 0) {
       shuffleHistory.push(currentIndex);
+      if (shuffleHistory.length > 200) shuffleHistory.shift();   // hours on repeat
       do {
         nextIndex = Math.floor(Math.random() * songs.length);
       } while (nextIndex === currentIndex);
@@ -1349,9 +1368,9 @@ function seek(e) {
   const clientX = e.touches ? e.touches[0].clientX : e.clientX;
   const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
   audio.currentTime = pct * audio.duration;
+  updatePositionState();   // in seek() so touch drags move the lock screen too
 }
 pTrack.addEventListener('click', seek);
-pTrack.addEventListener('click', updatePositionState);
 pTrack.addEventListener('touchstart', seek, { passive: true });
 
 // Volume
@@ -1461,7 +1480,7 @@ function runAnalysis(src) {
 }
 
 function buildSpectrogram(src, buffer) {
-  return new Promise(resolve => {
+  return new Promise((resolve, reject) => {
     const pcm = buffer.getChannelData(0);
     const fft = makeFFT(FFT_SIZE);
     const edges = bandEdges(FFT_SIZE / 2, BANDS);
@@ -1474,8 +1493,15 @@ function buildSpectrogram(src, buffer) {
     const db = new Float32Array(frames * BANDS);
     let f = 0;
 
-    // Chunked, so analysing a four-minute track never eats a frame.
+    // Chunked, so analysing a four-minute track never eats a frame. Only the
+    // first call runs inside the executor, so a throw from any later one would
+    // escape unhandled and leave analysisBusy stuck true — blocking analysis
+    // for every track after this one.
     function chunk() {
+      try { step(); } catch (err) { reject(err); }
+    }
+
+    function step() {
       const until = Math.min(frames, f + 120);
       for (; f < until; f++) {
         const off = f * HOP;
@@ -1525,7 +1551,13 @@ function buildSpectrogram(src, buffer) {
 
 // ── Canvas Visualizer ──
 const canvas = document.getElementById('viz');
+const vizCtx = canvas.getContext('2d');
+const viewPlayer = document.getElementById('viewPlayer');
 function resizeCanvas() {
+  // A hidden element measures 0. Without this guard, a resize while the card
+  // tab is open collapses the bitmap and the visualizer stays blank even after
+  // switching back — which is exactly what rotating the phone on that tab did.
+  if (!canvas.offsetWidth) return;
   canvas.width  = canvas.offsetWidth  * devicePixelRatio;
   canvas.height = canvas.offsetHeight * devicePixelRatio;
 }
@@ -1566,7 +1598,11 @@ let vizGain = 0;                          // eases the bars in and out on play/p
 
 function drawViz() {
   requestAnimationFrame(drawViz);
-  const ctx = canvas.getContext('2d');
+  // Nothing to paint while the card tab is up; the canvas keeps its last frame
+  // and picks up again on the way back. Saves a full redraw every frame of
+  // however many hours this thing is left running.
+  if (!viewPlayer.classList.contains('active')) return;
+  const ctx = vizCtx;
   const W = canvas.width, H = canvas.height;
   ctx.clearRect(0, 0, W, H);
   ctx.fillStyle = '#1A1A2E';
@@ -1620,6 +1656,8 @@ function switchTab(tab) {
   document.getElementById('viewCard').classList.toggle('active', tab === 'card');
   document.getElementById('tabPlayer').classList.toggle('active', tab === 'player');
   document.getElementById('tabCard').classList.toggle('active', tab === 'card');
+  // The canvas was unmeasurable while hidden — take its real size now.
+  if (tab === 'player') resizeCanvas();
 }
 
 // ── 8-bit boot screen ──
