@@ -560,6 +560,104 @@ input[type=range]::-webkit-slider-thumb {
 @media (prefers-reduced-motion: reduce) {
   .boot-heart-wrap, .boot::before { animation: none; }
 }
+
+/* PRESS START — the handover. Also the tap that makes the power-on hers. */
+.boot-start {
+  display: none;
+  width: 100%;
+  font-family: var(--px);
+  font-size: 10px;
+  line-height: 1;
+  letter-spacing: 1px;
+  color: var(--navy);
+  background: var(--pink);
+  border: 3px solid var(--navy);
+  box-shadow: 4px 4px 0 var(--navy);
+  padding: 13px 10px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+/* Pops in on the frame loading finishes, then settles into an arcade blink.
+   Both run on .show so nothing animates while the button is display:none. */
+.boot-start.show {
+  display: block;
+  animation: startPop 320ms steps(1, end) both,
+             startBlink 1s steps(1, end) 320ms infinite;
+}
+/* An animation's filled value outranks a plain declaration, so the press has
+   to cancel the animations before its own transform can take. */
+.boot-start:active {
+  transform: translate(4px, 4px);
+  box-shadow: none;
+  animation: none;
+}
+@keyframes startPop {
+  0%   { transform: scale(0.3);  opacity: 0; }
+  25%  { transform: scale(1.10); opacity: 1; }
+  55%  { transform: scale(0.94); }
+  80%  { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+@keyframes startBlink {
+  0%, 54%   { opacity: 1; }
+  55%, 100% { opacity: 0.32; }
+}
+.boot-msg.spent { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* .boot-start alone would lose to .boot-start.show on specificity. */
+  .boot-start.show { animation: none; }
+}
+
+/* ── CRT power-on ──────────────────────────────────────────────────────────
+   The shell switches on like an old set: a bright hairline at centre, a hard
+   vertical expand, then the panels fade up. Only transform and opacity are
+   animated, so every startup measurement — all offsetWidth/offsetHeight based
+   (syncPhotoPanelHeight, the playlist row lock, the marquees) — still reads
+   the real box. The collapsed state is applied from JS, never from the markup,
+   so a script that never runs leaves a perfectly normal shell rather than one
+   stuck at zero height. JS strips both classes when it's over, which also
+   drops the transform so .shell stops being a containing block. */
+.shell.crt-init { transform: scaleX(0.5) scaleY(0.014); }
+.shell.crt-init > *:not(.crt-flash) { opacity: 0; }
+
+.shell.crt { animation: crtOpen 420ms both; }
+@keyframes crtOpen {
+  0%   { transform: scaleX(0.5) scaleY(0.014); animation-timing-function: steps(3, end); }
+  25%  { transform: scaleX(1)   scaleY(0.014); animation-timing-function: steps(5, end); }
+  100% { transform: scaleX(1)   scaleY(1); }
+}
+
+/* the bright line the tube throws before the picture arrives */
+.crt-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  background: var(--pink);
+  opacity: 0;
+  pointer-events: none;
+}
+.shell.crt-init .crt-flash { opacity: 1; }
+.shell.crt .crt-flash { animation: crtFlash 420ms steps(4, end) both; }
+@keyframes crtFlash {
+  0%, 28% { opacity: 1; }
+  100%    { opacity: 0; }
+}
+
+.shell.crt > *:not(.crt-flash) { animation: crtPanels 260ms steps(3, end) 300ms both; }
+@keyframes crtPanels {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Selectors mirror the ones above exactly — `.shell.crt > *` alone loses to
+     `.shell.crt > *:not(.crt-flash)` on specificity and the fade survives. */
+  .shell.crt-init, .shell.crt { transform: none; animation: none; }
+  .shell.crt-init > *:not(.crt-flash),
+  .shell.crt > *:not(.crt-flash) { opacity: 1; animation: none; }
+  .crt-flash { display: none; }
+}
 </style>
 </head>
 <body>
@@ -575,6 +673,7 @@ input[type=range]::-webkit-slider-thumb {
     </div>
     <div class="boot-pct" id="bootPct">0%</div>
     <div class="boot-msg" id="bootMsg" aria-hidden="true">warming up the mixtape</div>
+    <button class="boot-start" id="bootStart" type="button">&#9654; PRESS START</button>
   </div>
 </div>
 
@@ -592,6 +691,8 @@ input[type=range]::-webkit-slider-thumb {
 </div>
 
 <div class="shell">
+  <div class="crt-flash" aria-hidden="true"></div>
+
   <!-- Title bar -->
   <div class="titlebar">
     <div class="dots">
@@ -1200,11 +1301,19 @@ function switchTab(tab) {
   const boot = document.getElementById('bootScreen');
   if (!boot) return;
 
-  const inner = boot.querySelector('.boot-inner');
-  const bar   = document.getElementById('bootBar');
-  const fill  = document.getElementById('bootFill');
-  const pctEl = document.getElementById('bootPct');
-  const msgEl = document.getElementById('bootMsg');
+  const inner    = boot.querySelector('.boot-inner');
+  const bar      = document.getElementById('bootBar');
+  const fill     = document.getElementById('bootFill');
+  const pctEl    = document.getElementById('bootPct');
+  const msgEl    = document.getElementById('bootMsg');
+  const startBtn = document.getElementById('bootStart');
+  const shell    = document.querySelector('.shell');
+
+  // Collapse the shell behind the boot screen so the power-on has something to
+  // open from. Set from JS only: if this script never runs, the shell is just
+  // a normal shell rather than one stuck at zero height.
+  const wantsMotion = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (shell && wantsMotion) shell.classList.add('crt-init');
 
   const MESSAGES = [
     'warming up the mixtape',
@@ -1220,12 +1329,13 @@ function switchTab(tab) {
   const MIN_MS = 1100;   // long enough to actually be seen on a warm cache
   const MAX_MS = 6000;   // never hold the app hostage
 
-  let target = 8, shown = 0, lastPct = -1, finished = false;
+  let target = 8, shown = 0, lastPct = -1, finished = false, dismissed = false;
   const credit = amount => { target = Math.min(100, target + amount); };
 
   // Safety net: requestAnimationFrame stalls in a backgrounded tab, so the
-  // draw loop alone can't be trusted to ever reach 100%. This always fires.
-  const bailout = setTimeout(finish, MAX_MS + 600);
+  // draw loop alone can't be trusted to ever reach 100%. This always fires,
+  // so PRESS START always appears even if a milestone never lands.
+  const bailout = setTimeout(ready, MAX_MS + 600);
 
   // Milestone 1 — the pixel font. Text fades in with it so there's no flash of
   // fallback type; the fallback timer covers Google Fonts being unreachable.
@@ -1255,6 +1365,10 @@ function switchTab(tab) {
   }, 320);
 
   function tick(now) {
+    // The bailout can call ready() from its timer while this loop is still
+    // running; without this the next frame would paint the half-finished bar
+    // back over the 100% ready() just wrote.
+    if (finished) return;
     const t = typeof now === 'number' ? now : performance.now();
     const dt = Math.min(100, t - last);
     last = t;
@@ -1274,11 +1388,14 @@ function switchTab(tab) {
       bar.setAttribute('aria-valuenow', pct);
     }
 
-    if (shown >= 99.5 && elapsed >= MIN_MS) { finish(); return; }
+    if (shown >= 99.5 && elapsed >= MIN_MS) { ready(); return; }
     requestAnimationFrame(tick);
   }
 
-  function finish() {
+  // Everything's in. Stop here and hand it to her — the boot screen waits on
+  // PRESS START rather than dismissing itself, so the player powers on to her
+  // tap instead of to a timer.
+  function ready() {
     if (finished) return;
     finished = true;
     clearInterval(msgTimer);
@@ -1286,11 +1403,29 @@ function switchTab(tab) {
     fill.style.width = '100%';
     pctEl.textContent = '100%';
     bar.setAttribute('aria-valuenow', 100);
-    msgEl.textContent = 'ready ♡';
-    setTimeout(() => {
-      boot.classList.add('done');
-      setTimeout(() => boot.remove(), 500);
-    }, 420);
+    msgEl.classList.add('spent');
+    startBtn.classList.add('show');
+    try { startBtn.focus({ preventScroll: true }); } catch (e) { startBtn.focus(); }
+  }
+
+  function dismiss() {
+    if (dismissed || !finished) return;
+    dismissed = true;
+    boot.classList.add('done');
+    // Start the power-on partway through the fade so the two read as one
+    // motion — the boot screen dissolving into the tube coming to life.
+    setTimeout(powerOn, 180);
+    setTimeout(() => boot.remove(), 500);
+  }
+  startBtn.addEventListener('click', dismiss);
+
+  // Runs the CRT open, then strips both classes so .shell is left with no
+  // transform of its own (a transformed ancestor would become the containing
+  // block for anything fixed-positioned added inside it later).
+  function powerOn() {
+    if (!shell || !shell.classList.contains('crt-init')) return;
+    shell.classList.add('crt');
+    setTimeout(() => shell.classList.remove('crt-init', 'crt'), 640);
   }
 
   requestAnimationFrame(tick);
