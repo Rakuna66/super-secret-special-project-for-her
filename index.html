@@ -560,6 +560,104 @@ input[type=range]::-webkit-slider-thumb {
 @media (prefers-reduced-motion: reduce) {
   .boot-heart-wrap, .boot::before { animation: none; }
 }
+
+/* PRESS START — the handover. Also the tap that makes the power-on hers. */
+.boot-start {
+  display: none;
+  width: 100%;
+  font-family: var(--px);
+  font-size: 10px;
+  line-height: 1;
+  letter-spacing: 1px;
+  color: var(--navy);
+  background: var(--pink);
+  border: 3px solid var(--navy);
+  box-shadow: 4px 4px 0 var(--navy);
+  padding: 13px 10px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+/* Pops in on the frame loading finishes, then settles into an arcade blink.
+   Both run on .show so nothing animates while the button is display:none. */
+.boot-start.show {
+  display: block;
+  animation: startPop 320ms steps(1, end) both,
+             startBlink 1s steps(1, end) 320ms infinite;
+}
+/* An animation's filled value outranks a plain declaration, so the press has
+   to cancel the animations before its own transform can take. */
+.boot-start:active {
+  transform: translate(4px, 4px);
+  box-shadow: none;
+  animation: none;
+}
+@keyframes startPop {
+  0%   { transform: scale(0.3);  opacity: 0; }
+  25%  { transform: scale(1.10); opacity: 1; }
+  55%  { transform: scale(0.94); }
+  80%  { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+@keyframes startBlink {
+  0%, 54%   { opacity: 1; }
+  55%, 100% { opacity: 0.32; }
+}
+.boot-msg.spent { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* .boot-start alone would lose to .boot-start.show on specificity. */
+  .boot-start.show { animation: none; }
+}
+
+/* ── CRT power-on ──────────────────────────────────────────────────────────
+   The shell switches on like an old set: a bright hairline at centre, a hard
+   vertical expand, then the panels fade up. Only transform and opacity are
+   animated, so every startup measurement — all offsetWidth/offsetHeight based
+   (syncPhotoPanelHeight, the playlist row lock, the marquees) — still reads
+   the real box. The collapsed state is applied from JS, never from the markup,
+   so a script that never runs leaves a perfectly normal shell rather than one
+   stuck at zero height. JS strips both classes when it's over, which also
+   drops the transform so .shell stops being a containing block. */
+.shell.crt-init { transform: scaleX(0.5) scaleY(0.014); }
+.shell.crt-init > *:not(.crt-flash) { opacity: 0; }
+
+.shell.crt { animation: crtOpen 420ms both; }
+@keyframes crtOpen {
+  0%   { transform: scaleX(0.5) scaleY(0.014); animation-timing-function: steps(3, end); }
+  25%  { transform: scaleX(1)   scaleY(0.014); animation-timing-function: steps(5, end); }
+  100% { transform: scaleX(1)   scaleY(1); }
+}
+
+/* the bright line the tube throws before the picture arrives */
+.crt-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  background: var(--pink);
+  opacity: 0;
+  pointer-events: none;
+}
+.shell.crt-init .crt-flash { opacity: 1; }
+.shell.crt .crt-flash { animation: crtFlash 420ms steps(4, end) both; }
+@keyframes crtFlash {
+  0%, 28% { opacity: 1; }
+  100%    { opacity: 0; }
+}
+
+.shell.crt > *:not(.crt-flash) { animation: crtPanels 260ms steps(3, end) 300ms both; }
+@keyframes crtPanels {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Selectors mirror the ones above exactly — `.shell.crt > *` alone loses to
+     `.shell.crt > *:not(.crt-flash)` on specificity and the fade survives. */
+  .shell.crt-init, .shell.crt { transform: none; animation: none; }
+  .shell.crt-init > *:not(.crt-flash),
+  .shell.crt > *:not(.crt-flash) { opacity: 1; animation: none; }
+  .crt-flash { display: none; }
+}
 </style>
 </head>
 <body>
@@ -575,6 +673,7 @@ input[type=range]::-webkit-slider-thumb {
     </div>
     <div class="boot-pct" id="bootPct">0%</div>
     <div class="boot-msg" id="bootMsg" aria-hidden="true">warming up the mixtape</div>
+    <button class="boot-start" id="bootStart" type="button">&#9654; PRESS START</button>
   </div>
 </div>
 
@@ -592,6 +691,8 @@ input[type=range]::-webkit-slider-thumb {
 </div>
 
 <div class="shell">
+  <div class="crt-flash" aria-hidden="true"></div>
+
   <!-- Title bar -->
   <div class="titlebar">
     <div class="dots">
@@ -843,6 +944,24 @@ songWhy.addEventListener('click', () => {
 let currentIndex = 0;
 let isPlaying = false;
 let audioCtx, analyser, src, dataArray, animId;
+let primed = false, priming = false;
+
+// createMediaElementSource permanently reroutes the <audio> element through
+// the WebAudio graph, and iOS suspends that graph the moment the screen locks
+// — which is exactly the silence this player kept hitting. A backgrounded page
+// can't resume a suspended context (no gesture available), so on WebKit we
+// never build the graph at all and let the element talk straight to the
+// hardware, which is the only path iOS keeps alive behind the lock screen.
+// The visualizer falls back to a synthetic spectrum there; see drawViz.
+// Erring toward "on" is deliberate: a stand-in visualizer is cosmetic, silent
+// playback is not.
+const NATIVE_AUDIO_ONLY = (() => {
+  const ua = navigator.userAgent || '';
+  const iOS = /iPad|iPhone|iPod/.test(ua) || /iPad|iPhone|iPod/.test(navigator.platform || '');
+  const iPadOS = navigator.maxTouchPoints > 1 && /Mac/.test(ua);   // iPadOS 13+ claims to be a Mac
+  const safari = /^((?!chrome|crios|android).)*safari/i.test(ua);
+  return iOS || iPadOS || safari;
+})();
 
 const palettes = [
   ['#FFB3C6','#C9B8E8','#B8E8D0','#FFD6B3','#FFB3C6','#C9B8E8'],
@@ -994,14 +1113,94 @@ function loadSong(index, autoplay = false) {
       title:  s.title,
       artist: s.artist,
       album:  'A Playlist For Kelly',
+      artwork: artworkFor(s),
     });
-    navigator.mediaSession.setActionHandler('previoustrack', () => go(-1));
-    navigator.mediaSession.setActionHandler('nexttrack',     () => go(1));
-    navigator.mediaSession.setActionHandler('play',  () => {
+    // Safari throws NotSupportedError for actions it doesn't implement, and an
+    // unguarded throw here would abandon every handler after it — which is why
+    // each one is set through setHandler rather than called directly.
+    setHandler('previoustrack', () => go(-1));
+    setHandler('nexttrack',     () => go(1));
+    setHandler('play',  () => {
       ensureAudioCtx();
       audio.play().catch(err => console.warn('Playback blocked:', err));
     });
-    navigator.mediaSession.setActionHandler('pause', () => audio.pause());
+    setHandler('pause', () => audio.pause());
+    setHandler('stop',  () => { audio.pause(); audio.currentTime = 0; });
+    setHandler('seekto', d => {
+      if (!d || typeof d.seekTime !== 'number') return;
+      if (d.fastSeek && audio.fastSeek) audio.fastSeek(d.seekTime);
+      else audio.currentTime = d.seekTime;
+      updatePositionState();
+    });
+    setHandler('seekbackward', d => {
+      audio.currentTime = Math.max(0, audio.currentTime - ((d && d.seekOffset) || 10));
+      updatePositionState();
+    });
+    setHandler('seekforward', d => {
+      const end = audio.duration || Infinity;
+      audio.currentTime = Math.min(end, audio.currentTime + ((d && d.seekOffset) || 10));
+      updatePositionState();
+    });
+  }
+}
+
+// ── Lock screen plumbing ──
+function setHandler(action, fn) {
+  try { navigator.mediaSession.setActionHandler(action, fn); }
+  catch (e) { /* action not supported on this browser — the rest still register */ }
+}
+
+// The lock screen wants an absolute URL; a relative one silently shows nothing.
+function artworkFor(s) {
+  if (!s.photo) return [];
+  const ext = s.photo.split('.').pop().toLowerCase();
+  const type = ext === 'png' ? 'image/png' : 'image/jpeg';
+  return [{ src: new URL(s.photo, location.href).href, sizes: '512x512', type }];
+}
+
+// Feeds the lock screen's scrubber. Safari throws if duration isn't settled
+// yet or position runs past it, so this is guarded on both sides.
+function updatePositionState() {
+  if (!('mediaSession' in navigator) || !navigator.mediaSession.setPositionState) return;
+  if (!isFinite(audio.duration) || audio.duration <= 0) return;
+  try {
+    navigator.mediaSession.setPositionState({
+      duration: audio.duration,
+      playbackRate: audio.playbackRate || 1,
+      position: Math.max(0, Math.min(audio.currentTime, audio.duration)),
+    });
+  } catch (e) { /* transient state mid-load */ }
+}
+
+// iOS only hands a page the Now Playing controls once it has actually played
+// audio, so there's no way to open the page, lock the phone and press play
+// unless something armed the audio session first. PRESS START spends its
+// gesture doing exactly that: play muted, pause, restore. Nothing is audible,
+// but from here the lock screen transport exists and she can start it there.
+function primeAudio() {
+  if (primed) return;
+  primed = true;
+  priming = true;
+
+  const restore = () => {
+    audio.muted = false;
+    audio.volume = parseFloat(volSlider.value);
+    priming = false;
+    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+  };
+
+  audio.muted = true;
+  let p;
+  try { p = audio.play(); } catch (e) { restore(); return; }
+
+  if (p && typeof p.then === 'function') {
+    p.then(() => {
+      audio.pause();
+      audio.currentTime = 0;
+      setTimeout(restore, 0);   // let the pause event land while still priming
+    }).catch(() => { restore(); });
+  } else {
+    setTimeout(() => { audio.pause(); audio.currentTime = 0; restore(); }, 0);
   }
 }
 
@@ -1027,6 +1226,10 @@ function go(dir, forcePlay) {
 }
 
 function ensureAudioCtx() {
+  // No graph on WebKit — see NATIVE_AUDIO_ONLY. Everything downstream already
+  // guards on `audioCtx` being set, so the four resume paths simply go inert
+  // here rather than needing to be unpicked.
+  if (NATIVE_AUDIO_ONLY) return;
   if (audioCtx) { if (audioCtx.state === 'suspended') audioCtx.resume(); return; }
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   analyser = audioCtx.createAnalyser();
@@ -1088,15 +1291,18 @@ audio.addEventListener('ended', () => {
 // Keep the play/pause button in sync even when playback stops for reasons
 // outside our own click handler (e.g. a call interrupting audio focus).
 audio.addEventListener('pause', () => {
+  if (priming) return;
   isPlaying = false;
   playBtn.textContent = '▶';
   if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
 });
 audio.addEventListener('play',  () => {
+  if (priming) return;   // the silent arming pass isn't playback
   isPlaying = true;
   playBtn.textContent = '⏸︎';
   vizIdle.style.display = 'none';
   if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+  updatePositionState();
   // The 'play' event firing means the element itself is unblocked — use
   // that same beat to retry resuming the (possibly still-suspended) audio
   // graph, since iOS doesn't always honor resume() called from inside the
@@ -1116,12 +1322,17 @@ window.addEventListener('pageshow', () => {
 });
 
 // Progress
+let lastPosPush = 0;
 audio.addEventListener('timeupdate', () => {
   if (!audio.duration) return;
   pFill.style.width = (audio.currentTime / audio.duration * 100) + '%';
   timeEl.textContent = fmt(audio.currentTime);
+  // Once a second is plenty for the lock screen, and cheap while backgrounded.
+  const now = audio.currentTime;
+  if (Math.abs(now - lastPosPush) >= 1) { lastPosPush = now; updatePositionState(); }
 });
 audio.addEventListener('loadedmetadata', () => {
+  updatePositionState();
   durEl.textContent = fmt(audio.duration);
   const d = document.getElementById(`dur-${currentIndex}`);
   if (d) d.textContent = fmt(audio.duration);
@@ -1136,6 +1347,7 @@ function seek(e) {
   audio.currentTime = pct * audio.duration;
 }
 pTrack.addEventListener('click', seek);
+pTrack.addEventListener('click', updatePositionState);
 pTrack.addEventListener('touchstart', seek, { passive: true });
 
 // Volume
@@ -1150,6 +1362,24 @@ function resizeCanvas() {
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
 
+// Stand-in spectrum for platforms where the analyser would cost us lock-screen
+// playback (see NATIVE_AUDIO_ONLY). Three sines at incommensurate rates never
+// line up, so at 32 chunky bars it reads as a bouncing equaliser; the tilt just
+// makes the low end run hotter the way a real spectrum does. Driven off
+// currentTime, so it freezes the instant playback stops.
+const fakeLevels = new Float32Array(32);
+function sampleFakeLevels(t) {
+  const count = fakeLevels.length;
+  for (let i = 0; i < count; i++) {
+    const v = 0.55 * Math.sin(t * 2.7 + i * 0.90)
+            + 0.30 * Math.sin(t * 4.3 + i * 2.10)
+            + 0.25 * Math.sin(t * 7.1 + i * 0.35);
+    const tilt = 1 - (i / count) * 0.40;
+    fakeLevels[i] = Math.max(0, Math.min(1, (0.52 + v * 0.52) * tilt));
+  }
+}
+
+let vizGain = 0;   // eases the bars in and out instead of snapping to silence
 function drawViz() {
   requestAnimationFrame(drawViz);
   const ctx = canvas.getContext('2d');
@@ -1157,15 +1387,21 @@ function drawViz() {
   ctx.clearRect(0, 0, W, H);
   ctx.fillStyle = '#1A1A2E';
   ctx.fillRect(0, 0, W, H);
-  if (!analyser) return;
-  analyser.getByteFrequencyData(dataArray);
+
+  const synthetic = !analyser;
+  if (synthetic) sampleFakeLevels(audio.currentTime || 0);
+  else analyser.getByteFrequencyData(dataArray);
+
+  vizGain += ((isPlaying ? 1 : 0) - vizGain) * 0.08;
+  if (synthetic && vizGain < 0.01) return;
+
   const palette = palettes[currentIndex % palettes.length];
-  const count = dataArray.length;
+  const count = synthetic ? fakeLevels.length : dataArray.length;
   const barW = Math.floor(W / count);
   const gap = Math.max(1, Math.floor(barW * 0.15));
   const snap = Math.ceil(4 * devicePixelRatio);
   for (let i = 0; i < count; i++) {
-    const val = dataArray[i] / 255;
+    const val = synthetic ? fakeLevels[i] * vizGain : dataArray[i] / 255;
     const barH = Math.max(snap, Math.floor(val * (H - snap) / snap) * snap);
     ctx.fillStyle = palette[i % palette.length];
     ctx.fillRect(i * barW, H - barH, barW - gap, barH);
@@ -1200,11 +1436,19 @@ function switchTab(tab) {
   const boot = document.getElementById('bootScreen');
   if (!boot) return;
 
-  const inner = boot.querySelector('.boot-inner');
-  const bar   = document.getElementById('bootBar');
-  const fill  = document.getElementById('bootFill');
-  const pctEl = document.getElementById('bootPct');
-  const msgEl = document.getElementById('bootMsg');
+  const inner    = boot.querySelector('.boot-inner');
+  const bar      = document.getElementById('bootBar');
+  const fill     = document.getElementById('bootFill');
+  const pctEl    = document.getElementById('bootPct');
+  const msgEl    = document.getElementById('bootMsg');
+  const startBtn = document.getElementById('bootStart');
+  const shell    = document.querySelector('.shell');
+
+  // Collapse the shell behind the boot screen so the power-on has something to
+  // open from. Set from JS only: if this script never runs, the shell is just
+  // a normal shell rather than one stuck at zero height.
+  const wantsMotion = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (shell && wantsMotion) shell.classList.add('crt-init');
 
   const MESSAGES = [
     'warming up the mixtape',
@@ -1220,12 +1464,13 @@ function switchTab(tab) {
   const MIN_MS = 1100;   // long enough to actually be seen on a warm cache
   const MAX_MS = 6000;   // never hold the app hostage
 
-  let target = 8, shown = 0, lastPct = -1, finished = false;
+  let target = 8, shown = 0, lastPct = -1, finished = false, dismissed = false;
   const credit = amount => { target = Math.min(100, target + amount); };
 
   // Safety net: requestAnimationFrame stalls in a backgrounded tab, so the
-  // draw loop alone can't be trusted to ever reach 100%. This always fires.
-  const bailout = setTimeout(finish, MAX_MS + 600);
+  // draw loop alone can't be trusted to ever reach 100%. This always fires,
+  // so PRESS START always appears even if a milestone never lands.
+  const bailout = setTimeout(ready, MAX_MS + 600);
 
   // Milestone 1 — the pixel font. Text fades in with it so there's no flash of
   // fallback type; the fallback timer covers Google Fonts being unreachable.
@@ -1255,6 +1500,10 @@ function switchTab(tab) {
   }, 320);
 
   function tick(now) {
+    // The bailout can call ready() from its timer while this loop is still
+    // running; without this the next frame would paint the half-finished bar
+    // back over the 100% ready() just wrote.
+    if (finished) return;
     const t = typeof now === 'number' ? now : performance.now();
     const dt = Math.min(100, t - last);
     last = t;
@@ -1274,11 +1523,14 @@ function switchTab(tab) {
       bar.setAttribute('aria-valuenow', pct);
     }
 
-    if (shown >= 99.5 && elapsed >= MIN_MS) { finish(); return; }
+    if (shown >= 99.5 && elapsed >= MIN_MS) { ready(); return; }
     requestAnimationFrame(tick);
   }
 
-  function finish() {
+  // Everything's in. Stop here and hand it to her — the boot screen waits on
+  // PRESS START rather than dismissing itself, so the player powers on to her
+  // tap instead of to a timer.
+  function ready() {
     if (finished) return;
     finished = true;
     clearInterval(msgTimer);
@@ -1286,11 +1538,33 @@ function switchTab(tab) {
     fill.style.width = '100%';
     pctEl.textContent = '100%';
     bar.setAttribute('aria-valuenow', 100);
-    msgEl.textContent = 'ready ♡';
-    setTimeout(() => {
-      boot.classList.add('done');
-      setTimeout(() => boot.remove(), 500);
-    }, 420);
+    msgEl.classList.add('spent');
+    startBtn.classList.add('show');
+    try { startBtn.focus({ preventScroll: true }); } catch (e) { startBtn.focus(); }
+  }
+
+  function dismiss() {
+    if (dismissed || !finished) return;
+    dismissed = true;
+    // Spend the tap on the audio session before anything else — it is the only
+    // user gesture guaranteed to happen, and iOS won't hand over the lock
+    // screen transport without one.
+    primeAudio();
+    boot.classList.add('done');
+    // Start the power-on partway through the fade so the two read as one
+    // motion — the boot screen dissolving into the tube coming to life.
+    setTimeout(powerOn, 180);
+    setTimeout(() => boot.remove(), 500);
+  }
+  startBtn.addEventListener('click', dismiss);
+
+  // Runs the CRT open, then strips both classes so .shell is left with no
+  // transform of its own (a transformed ancestor would become the containing
+  // block for anything fixed-positioned added inside it later).
+  function powerOn() {
+    if (!shell || !shell.classList.contains('crt-init')) return;
+    shell.classList.add('crt');
+    setTimeout(() => shell.classList.remove('crt-init', 'crt'), 640);
   }
 
   requestAnimationFrame(tick);
