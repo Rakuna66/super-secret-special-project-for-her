@@ -79,7 +79,7 @@ body.bg-paused .bg-scroll { animation-play-state: paused; }
 .titlebar {
   background: linear-gradient(90deg, var(--lavender), var(--pink));
   border-bottom: 3px solid var(--navy);
-  padding: 10px 14px;
+  padding: 7px 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -130,15 +130,15 @@ body.bg-paused .bg-scroll { animation-play-state: paused; }
 
 /* ── Song info ── */
 .song-info {
-  padding: 8px 14px 4px;
+  padding: 6px 14px 4px;
   background: var(--cream);
   border-bottom: 2px solid var(--navy);
   flex-shrink: 0;
 }
-.song-title-wrap  { overflow: hidden; white-space: nowrap; margin-bottom: 4px; }
-.song-artist-wrap { overflow: hidden; white-space: nowrap; margin-bottom: 6px; }
-.song-title  { font-size: 11px; color: var(--navy); display: inline-block; white-space: nowrap; }
-.song-artist { font-size: 10px; color: var(--gray); display: inline-block; white-space: nowrap; }
+.song-title-wrap  { overflow: hidden; white-space: nowrap; margin-bottom: 3px; }
+.song-artist-wrap { overflow: hidden; white-space: nowrap; margin-bottom: 4px; }
+.song-title  { font-size: 9px; color: var(--navy); display: inline-block; white-space: nowrap; }
+.song-artist { font-size: 8px; color: var(--gray); display: inline-block; white-space: nowrap; }
 .song-title.marquee, .song-artist.marquee {
   animation-name: marqueeScroll;
   animation-timing-function: linear;
@@ -156,7 +156,7 @@ body.bg-paused .bg-scroll { animation-play-state: paused; }
   cursor: pointer;
 }
 .song-why {
-  font-size: 10px; color: #6B5B95; line-height: 1.9;
+  font-size: 9px; color: #6B5B95; line-height: 1.55;
   font-family: Georgia, serif; font-style: italic;
   display: inline-block; white-space: nowrap;
 }
@@ -312,7 +312,7 @@ input[type=range]::-webkit-slider-thumb {
   background: var(--cream);
 }
 .tab-btn {
-  flex: 1; padding: 8px 4px;
+  flex: 1; padding: 6px 4px;
   font-family: var(--px); font-size: 7px;
   color: var(--gray); background: var(--cream);
   border: none; border-right: 2px solid var(--navy);
@@ -988,8 +988,35 @@ songs.forEach((s, i) => {
 // stretch to fill whatever space is left over — that "leftover space" isn't
 // actually fixed (it depends on the shell's viewport-driven height), so the
 // list itself was a second source of the layout shifting around.
-const firstRow = playlistEl.querySelector('.pl-item');
-if (firstRow) playlistEl.style.height = (firstRow.offsetHeight * 2.5) + 'px';
+// Size the playlist from the space actually left over rather than a hardcoded
+// row count, so a taller phone shows more of the list. Snapped down to half
+// rows: a clipped row reads as "there's more below", and it never claims space
+// it doesn't have. Still written as a fixed pixel height and never re-derived
+// on resize — letting this flex is what made the layout jump as mobile browser
+// chrome slid in and out.
+function lockPlaylistHeight() {
+  const firstRow = playlistEl.querySelector('.pl-item');
+  if (!firstRow) return;
+  const view = playlistEl.parentElement;
+  let used = 0;
+  for (const el of view.children) if (el !== playlistEl) used += el.offsetHeight;
+  const rowH = firstRow.offsetHeight;
+  const fits = (view.clientHeight - used) / rowH;
+  // Floor of one row, not two-and-a-half: on a viewport too short to hold the
+  // list, forcing extra rows only pushes them past the clip and they can't be
+  // seen anyway — it costs visible rows rather than buying them.
+  const rows = Math.max(1, Math.min(4.5, Math.floor(fits * 2) / 2));
+  playlistEl.style.height = (rowH * rows) + 'px';
+}
+lockPlaylistHeight();
+
+// Row height is measured in the fallback face until 'Press Start 2P' arrives,
+// which put the lock out by a couple of pixels per row. Re-measure once the
+// real font is in — this lands while the boot screen is still covering the
+// app, so nothing visibly resizes, and it stays pinned from then on.
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(lockPlaylistHeight);
+}
 
 // Preload just the metadata (duration) for every track so the playlist
 // shows real times up front instead of only after each song has been played.
