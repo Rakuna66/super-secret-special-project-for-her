@@ -1,7 +1,7 @@
-# 💖 A Playlist For Kelly
+# 💖 A Playlist For Kelly 💖
 
-For every song here there's a reason; a memory, an inside joke,
-a moment I wanted to keep. 
-Press play and scroll through them one at a time, let it run on repeat.
+I LOVE YOU KELLY!!
+I put a lot of work into this project to show how much I love all the things about you!
+I hope you love it!!
 
-There's a card in here too. Find it.
+- Your BFWB Tony
